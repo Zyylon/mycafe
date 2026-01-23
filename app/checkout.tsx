@@ -1,6 +1,6 @@
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, Alert, Platform, LayoutAnimation, UIManager } from 'react-native';
+import { StyleSheet, Text, View, TextInput, Pressable, ScrollView, Alert, Platform, LayoutAnimation, UIManager } from 'react-native';
 import { ref, set, runTransaction, push } from 'firebase/database';
 import { database } from '../lib/firebaseConfig';
 
@@ -191,9 +191,9 @@ export default function CheckoutScreen() {
                 
                 <Text style={styles.label}>Order Type</Text>
                 <View style={styles.toggleContainer}>
-                    <TouchableOpacity style={[styles.toggleButton, orderType === 'Dine-in' && styles.activeButton]} onPress={() => { setOrderType('Dine-in'); handleEdit(); }}><Text style={styles.toggleButtonText}>Dine-in</Text></TouchableOpacity>
-                    <TouchableOpacity style={[styles.toggleButton, orderType === 'Take Away' && styles.activeButton]} onPress={() => { setOrderType('Take Away'); handleEdit(); }}><Text style={styles.toggleButtonText}>Take Away</Text></TouchableOpacity>
-                    <TouchableOpacity style={[styles.toggleButton, orderType === 'Delivery' && styles.activeButton]} onPress={() => { setOrderType('Delivery'); handleEdit(); }}><Text style={styles.toggleButtonText}>Delivery</Text></TouchableOpacity>
+                    <Pressable style={({ pressed }) => [styles.toggleButton, orderType === 'Dine-in' && styles.activeButton, { opacity: pressed ? 0.7 : 1 }]} onPress={() => { setOrderType('Dine-in'); handleEdit(); }}><Text style={styles.toggleButtonText}>Dine-in</Text></Pressable>
+                    <Pressable style={({ pressed }) => [styles.toggleButton, orderType === 'Take Away' && styles.activeButton, { opacity: pressed ? 0.7 : 1 }]} onPress={() => { setOrderType('Take Away'); handleEdit(); }}><Text style={styles.toggleButtonText}>Take Away</Text></Pressable>
+                    <Pressable style={({ pressed }) => [styles.toggleButton, orderType === 'Delivery' && styles.activeButton, { opacity: pressed ? 0.7 : 1 }]} onPress={() => { setOrderType('Delivery'); handleEdit(); }}><Text style={styles.toggleButtonText}>Delivery</Text></Pressable>
                 </View>
 
                 {orderType === 'Delivery' && (
@@ -210,8 +210,8 @@ export default function CheckoutScreen() {
 
                 <Text style={styles.label}>Payment Method</Text>
                 <View style={styles.toggleContainer}>
-                    <TouchableOpacity style={[styles.toggleButton, paymentMethod === 'Cash' && styles.activeButton]} onPress={() => { setPaymentMethod('Cash'); handleEdit(); }}><Text style={styles.toggleButtonText}>Cash</Text></TouchableOpacity>
-                    <TouchableOpacity style={[styles.toggleButton, paymentMethod === 'Card' && styles.activeButton]} onPress={() => { setPaymentMethod('Card'); handleEdit(); }}><Text style={styles.toggleButtonText}>Card</Text></TouchableOpacity>
+                    <Pressable style={({ pressed }) => [styles.toggleButton, paymentMethod === 'Cash' && styles.activeButton, { opacity: pressed ? 0.7 : 1 }]} onPress={() => { setPaymentMethod('Cash'); handleEdit(); }}><Text style={styles.toggleButtonText}>Cash</Text></Pressable>
+                    <Pressable style={({ pressed }) => [styles.toggleButton, paymentMethod === 'Card' && styles.activeButton, { opacity: pressed ? 0.7 : 1 }]} onPress={() => { setPaymentMethod('Card'); handleEdit(); }}><Text style={styles.toggleButtonText}>Card</Text></Pressable>
                 </View>
 
                 <View style={styles.summary}>
@@ -219,9 +219,9 @@ export default function CheckoutScreen() {
                     <Text style={styles.summaryTotal}>PKR {total.toFixed(2)}</Text>
                 </View>
 
-                <TouchableOpacity style={[styles.printButton, isSaving && { opacity: 0.7 }]} onPress={mainAction} disabled={isSaving}>
+                <Pressable style={({ pressed }) => [styles.printButton, { opacity: pressed || isSaving ? 0.7 : 1 }]} onPress={mainAction} disabled={isSaving}>
                     <Text style={styles.printButtonText}>{isSaving ? 'Processing...' : mainButtonText}</Text>
-                </TouchableOpacity>
+                </Pressable>
             </ScrollView>
             {Platform.OS === 'web' && isPreviewVisible && (
                 <View style={styles.previewContainer}>

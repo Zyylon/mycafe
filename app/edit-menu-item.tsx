@@ -1,7 +1,7 @@
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import React, { useState, useEffect } from 'react';
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, Image
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, Pressable, View, Image
 } from 'react-native';
 import { database, storage } from '../lib/firebaseConfig';
 import { ref as dbRef, get, update } from 'firebase/database';
@@ -154,9 +154,9 @@ export default function EditMenuItemScreen() {
         
         <Image source={{ uri: localImageUri || imageUrl || 'https://via.placeholder.com/150' }} style={styles.imagePreview} />
 
-        <TouchableOpacity style={styles.imagePickerButton} onPress={pickImage}>
+        <Pressable style={({ pressed }) => [styles.imagePickerButton, { opacity: pressed ? 0.7 : 1 }]} onPress={pickImage}>
             <Text style={styles.imagePickerButtonText}>Select New Image</Text>
-        </TouchableOpacity>
+        </Pressable>
         
         <Text style={styles.orText}>or paste an image URL below</Text>
 
@@ -173,13 +173,13 @@ export default function EditMenuItemScreen() {
           placeholderTextColor="#64748b" 
         />
 
-        <TouchableOpacity style={[styles.button, saving && { opacity: 0.7 }]} onPress={handleUpdateItem} disabled={saving}>
+        <Pressable style={({ pressed }) => [styles.button, { opacity: pressed || saving ? 0.7 : 1 }]} onPress={handleUpdateItem} disabled={saving}>
           {saving ? <ActivityIndicator color="#0f172a" /> : <Text style={styles.buttonText}>Save Changes</Text>}
-        </TouchableOpacity>
+        </Pressable>
 
-        <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
+        <Pressable style={({ pressed }) => [styles.cancelButton, { opacity: pressed ? 0.7 : 1 }]} onPress={() => router.back()}>
             <Text style={styles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
     </KeyboardAvoidingView>
   );

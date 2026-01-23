@@ -1,47 +1,79 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { database } from '../../lib/firebaseConfig';
-import { ref, get, query, orderByChild, equalTo } from 'firebase/database';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, Pressable, View } from 'react-native';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { ref, get } from 'firebase/database';
+import * as Crypto from 'expo-crypto';
+import { auth, database } from '../../lib/firebaseConfig';
+
+const hashUsername = async (username: string) => {
+  const digest = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    username.toLowerCase()
+  );
+  return digest;
+};
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [username, setUsername] = useState<string>('');
+  const [loginInput, setLoginInput] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
 
   const handleLogin = async () => {
-    if (username === '' || password === '') {
-      Alert.alert('Error', 'Please enter both username and password.');
+    if (loginInput === '' || password === '') {
+      Alert.alert('Error', 'Please enter both email/username and password.');
       return;
     }
 
     setLoading(true);
     try {
-      const staffUsersRef = ref(database, 'staff_users');
-      const usernameQuery = query(staffUsersRef, orderByChild('username'), equalTo(username));
-      const snapshot = await get(usernameQuery);
+      let email = loginInput;
+
+      // If the input doesn't look like an email, treat it as a username.
+      if (!loginInput.includes('@')) {
+        const hashedUsername = await hashUsername(loginInput);
+        const mapRef = ref(database, `username_map/${hashedUsername}`);
+        const mapSnapshot = await get(mapRef);
+
+        if (!mapSnapshot.exists()) {
+          throw new Error('Username not found.');
+        }
+        email = mapSnapshot.val(); // Get the email associated with the username
+      }
+
+      // Authenticate with Firebase Auth using the resolved email
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Get user role from the Realtime Database to determine destination
+      const userRef = ref(database, `users/${user.uid}`);
+      const snapshot = await get(userRef);
 
       if (snapshot.exists()) {
-        let userFound = false;
-        snapshot.forEach((childSnapshot) => {
-          const userData = childSnapshot.val();
-          if (userData.password === password) {
-            userFound = true;
-          }
-        });
-
-        if (userFound) {
-          router.replace('/(tabs)/dashboard');
+        const userData = snapshot.val();
+        if (userData.role === 'admin') {
+          router.replace('/admin-dashboard');
         } else {
-          Alert.alert('Login Failed', 'Incorrect password.');
+          router.replace('/(tabs)/dashboard');
         }
       } else {
-        Alert.alert('Login Failed', 'Username not found.');
+        await signOut(auth);
+        throw new Error('User data not found in database.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      Alert.alert('Error', 'An error occurred during login.');
+      let errorMessage = 'An error occurred during login.';
+      if (
+        error.message === 'Username not found.' ||
+        error.code === 'auth/wrong-password' ||
+        error.code === 'auth/invalid-credential' ||
+        error.code === 'auth/user-not-found' ||
+        error.code === 'auth/invalid-email'
+      ) {
+        errorMessage = 'Invalid credentials. Please try again.';
+      }
+      Alert.alert('Login Failed', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -52,25 +84,19 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-       <View style={styles.card}>
-        <TouchableOpacity
-          style={styles.adminButton}
-          onPress={() => router.push('/admin-login')}
-        >
-          <Text style={styles.adminButtonText}>Admin Login</Text>
-        </TouchableOpacity>
-
+      <View style={styles.card}>
         <Text style={styles.emoji}>☕</Text>
         <Text style={styles.title}>Cafe Billing</Text>
         <Text style={styles.subtitle}>Sign in to continue</Text>
 
         <TextInput
           style={styles.input}
-          placeholder="Staff Username"
+          placeholder="Email or Username"
           placeholderTextColor="#64748b"
-          value={username}
-          onChangeText={setUsername}
+          value={loginInput}
+          onChangeText={setLoginInput}
           autoCapitalize="none"
+          keyboardType="email-address"
         />
 
         <TextInput
@@ -82,8 +108,8 @@ export default function LoginScreen() {
           onChangeText={setPassword}
         />
 
-        <TouchableOpacity
-          style={[styles.button, loading && { opacity: 0.7 }]}
+        <Pressable
+          style={({ pressed }) => [styles.button, { opacity: pressed || loading ? 0.7 : 1 }]}
           onPress={handleLogin}
           disabled={loading}
         >
@@ -92,7 +118,7 @@ export default function LoginScreen() {
           ) : (
             <Text style={styles.buttonText}>Log In</Text>
           )}
-        </TouchableOpacity>
+        </Pressable>
       </View>
     </KeyboardAvoidingView>
   );
@@ -101,8 +127,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center' },
   card: { width: '85%', maxWidth: 400, backgroundColor: '#1e293b', padding: 30, borderRadius: 24, borderWidth: 1, borderColor: '#334155', alignItems: 'center' },
-  adminButton: { position: 'absolute', top: 20, right: 20, backgroundColor: '#4ade80', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
-  adminButtonText: { color: '#0f172a', fontWeight: 'bold', fontSize: 14 },
   emoji: { fontSize: 48, marginBottom: 10 },
   title: { color: '#f8fafc', fontSize: 28, fontWeight: 'bold' },
   subtitle: { color: '#94a3b8', fontSize: 16, marginBottom: 30 },
