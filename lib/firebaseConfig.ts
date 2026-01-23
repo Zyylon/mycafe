@@ -17,7 +17,7 @@ const firebaseConfig = {
 // Initialize Firebase services
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const database = getDatabase(app, firebaseConfig.databaseURL);
+const database = getDatabase(app);
 const storage = getStorage(app, `gs://${firebaseConfig.storageBucket}`);
 
 export { app, auth, database, storage };
