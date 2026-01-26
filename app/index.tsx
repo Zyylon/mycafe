@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { browserSessionPersistence, setPersistence, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { get, ref } from 'firebase/database';
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View, Image } from 'react-native';
 import { auth, database } from '../lib/firebaseConfig';
 
 const hashUsername = async (username: string) => {
@@ -49,7 +49,6 @@ export default function LoginScreen() {
       const snapshot = await get(userRef);
 
       if (snapshot.exists()) {
-        // Redirection is now handled by AuthContext or simplified here
         router.replace('/(tabs)/dashboard');
       } else {
         await signOut(auth);
@@ -78,53 +77,92 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <View style={styles.card}>
-        <Text style={styles.emoji}>☕</Text>
-        <Text style={styles.title}>Slice n' Spice</Text>
-        <Text style={styles.subtitle}>Sign in to continue</Text>
+      <View style={styles.mainContent}>
+        <View style={styles.card}>
+          <Text style={styles.emoji}>☕</Text>
+          <Text style={styles.title}>Slice n' Spice</Text>
+          <Text style={styles.subtitle}>Sign in to continue</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email or Username"
-          placeholderTextColor="#64748b"
-          value={loginInput}
-          onChangeText={setLoginInput}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
+          <TextInput
+            style={styles.input}
+            placeholder="Email or Username"
+            placeholderTextColor="#64748b"
+            value={loginInput}
+            onChangeText={setLoginInput}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor="#64748b"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor="#64748b"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
 
-        <Pressable
-          style={({ pressed }) => [styles.button, { opacity: pressed || loading ? 0.7 : 1 }]}
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#0f172a" />
-          ) : (
-            <Text style={styles.buttonText}>Log In</Text>
-          )}
-        </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.button, { opacity: pressed || loading ? 0.7 : 1 }]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#0f172a" />
+            ) : (
+              <Text style={styles.buttonText}>Log In</Text>
+            )}
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={styles.footerBranding}>
+          <Image source={require('../assets/images/ic.png')} style={styles.footerLogo} />
+          <Text style={styles.footerCredit}>Designed By Infinity Crafters</Text>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center' },
-  card: { width: '85%', maxWidth: 400, backgroundColor: '#1e293b', padding: 30, borderRadius: 24, borderWidth: 1, borderColor: '#334155', alignItems: 'center' },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#0f172a',
+  },
+  mainContent: {
+    flex: 1, // This makes the content area take up available space, pushing the footer down
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  card: { 
+    width: '100%', 
+    maxWidth: 400, 
+    backgroundColor: '#1e293b', 
+    padding: 30, 
+    borderRadius: 24, 
+    borderWidth: 1, 
+    borderColor: '#334155', 
+    alignItems: 'center' 
+  },
   emoji: { fontSize: 48, marginBottom: 10 },
   title: { color: '#f8fafc', fontSize: 28, fontWeight: 'bold' },
   subtitle: { color: '#94a3b8', fontSize: 16, marginBottom: 30 },
   input: { width: '100%', backgroundColor: '#0f172a', color: '#fff', padding: 15, borderRadius: 12, marginBottom: 15, borderWidth: 1, borderColor: '#334155' },
   button: { width: '100%', backgroundColor: '#38bdf8', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 10, height: 55, justifyContent: 'center' },
   buttonText: { color: '#0f172a', fontWeight: 'bold', fontSize: 16 },
+  footerBranding: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  footerLogo: {
+      width: 50,
+      height: 50,
+      resizeMode: 'contain',
+      marginBottom: 8,
+  },
+  footerCredit: {
+      fontSize: 12,
+      color: '#64748b',
+  },
 });

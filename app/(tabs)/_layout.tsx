@@ -1,5 +1,5 @@
-import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 
 export default function TabsLayout() {
@@ -14,9 +14,18 @@ export default function TabsLayout() {
           paddingBottom: Platform.OS === 'ios' ? 30 : 10,
           paddingTop: 10,
         },
-        tabBarActiveTintColor: '#E53E3E',
+        tabBarActiveTintColor: '#38bdf8',
         tabBarInactiveTintColor: '#A0AEC0',
       }}>
+      
+      <Tabs.Screen
+        name="index"
+        options={{
+          href: null,
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+
       <Tabs.Screen
         name="dashboard"
         options={{
@@ -25,10 +34,10 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="settings"
         options={{
-          title: 'Profile',
-          tabBarIcon: ({ color }) => <Ionicons name="person-circle-outline" size={24} color={color} />,
+          title: 'Settings',
+          tabBarIcon: ({ color }) => <Ionicons name="settings-outline" size={24} color={color} />,
         }}
       />
     </Tabs>

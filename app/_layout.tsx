@@ -20,14 +20,15 @@ function RootLayoutNav() {
   return (
     <ThemeProvider value={DefaultTheme}>
       <Stack>
+        <Stack.Screen name="index" options={{ headerShown: false }} /> 
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        <Stack.Screen name="create-user" options={{ title: 'Create User' }} />
-        <Stack.Screen name="add-menu-item" options={{ title: 'Add Menu Item' }} />
-        <Stack.Screen name="manage-users" options={{ title: 'Manage Users' }} />
-        <Stack.Screen name="order-history" options={{ title: 'Order History' }} />
-        <Stack.Screen name="edit-menu-item" options={{ title: 'Edit Menu Item' }} />
-        <Stack.Screen name="checkout" options={{ title: 'Checkout' }} />
+        <Stack.Screen name="create-user" options={{ title: 'Create User',headerShown: false }} />
+        <Stack.Screen name="add-menu-item" options={{ title: 'Add Menu Item',headerShown: false }} />
+        <Stack.Screen name="manage-users" options={{ title: 'Manage Users',headerShown: false }} />
+        <Stack.Screen name="order-history" options={{ title: 'Order History',headerShown: false }} />
+        <Stack.Screen name="edit-menu-item" options={{ title: 'Edit Menu Item',headerShown: false }} />
+        <Stack.Screen name="checkout" options={{ title: 'Checkout',headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

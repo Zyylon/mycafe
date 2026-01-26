@@ -58,7 +58,7 @@ const createReceiptHtml = (order: any) => {
                 <div class="container">
                     <div class="center">
                         <img src="${logoUrl}" alt="Logo" />
-                        <h1 class="cafe-name">The Cafe</h1>
+                        <h1 class="cafe-name">Slice n'Spice</h1>
                         <p>Order ${order.orderNumber ? 'Confirmed' : 'Preview'}</p>
                         <p>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</p>
                     </div>

@@ -1,12 +1,17 @@
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { onValue, ref } from 'firebase/database';
 import React, { useEffect, useState } from 'react';
 import {
-    StyleSheet, Text, TouchableOpacity, View, Alert,
-    Platform, Image, ScrollView, ActivityIndicator, FlatList
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Platform,
+    ScrollView,
+    StyleSheet, Text, TouchableOpacity, View
 } from 'react-native';
-import { database } from '../../lib/firebaseConfig';
-import { ref, onValue } from 'firebase/database';
 import { useAuth } from '../../context/AuthContext';
+import { database } from '../../lib/firebaseConfig';
 
 // --- Type Definitions ---
 interface MenuItem {
@@ -162,8 +167,8 @@ export default function DashboardScreen() {
         <View style={styles.container}>
             <View style={styles.header}>
                 <View style={styles.logoContainer}>
-                    <View style={styles.logoPlaceholder} />
-                    <Text style={styles.logo}>Zylina Studio</Text>
+                    <Image source={require('../../assets/images/ic.png')} style={styles.logoImage} />
+                    <Text style={styles.logo}>Infinity Crafters</Text>
                 </View>
                 <View style={styles.userActions}>
                     <Text style={styles.userNameText}>Welcome, {userName}</Text>
@@ -176,7 +181,7 @@ export default function DashboardScreen() {
                 <View style={styles.mainContent}>
                     <ScrollView style={styles.menuContainer}>
                         <View style={styles.heroSection}>
-                            <Text style={styles.pageTitle}>{"It's not just Food, It's an Experience."}</Text>
+                            <Text style={styles.pageTitle}>{"Fast - Fresh - Delicious"}</Text>
                         </View>
                         
                         {menuSections.map(section => (
@@ -207,29 +212,28 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#1A202C' },
+    container: { flex: 1, backgroundColor: '#0f172a' },
     header: { 
         flexDirection: 'row', 
         justifyContent: 'space-between', 
         alignItems: 'center', 
         paddingHorizontal: 40, 
         paddingVertical: 20, 
-        backgroundColor: '#2D3748',
+        backgroundColor: '#1e293b',
         borderBottomWidth: 1,
-        borderBottomColor: '#4A5568',
+        borderBottomColor: '#334155',
     },
     logoContainer: {
         flexDirection: 'row',
         alignItems: 'center',
     },
-    logoPlaceholder: {
-        width: 30,
-        height: 30,
-        backgroundColor: '#E53E3E',
+    logoImage: {
+        width: 40,
+        height: 40,
+        resizeMode: 'contain',
         marginRight: 10,
-        borderRadius: 5,
     },
-    logo: { fontSize: 22, fontWeight: 'bold', color: '#E2E8F0' },
+    logo: { fontSize: 22, fontWeight: 'bold', color: '#f8fafc' },
     userActions: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -263,7 +267,7 @@ const styles = StyleSheet.create({
         minWidth: 200,
     },
     itemCard: { 
-        backgroundColor: '#2D3748', 
+        backgroundColor: '#1e293b', 
         borderRadius: 20, 
         alignItems: 'center',
         paddingVertical: 20,
@@ -280,16 +284,16 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: 20, 
         borderWidth: 4,
-        borderColor: '#2D3748',
+        borderColor: '#1e293b',
     },
     itemDetails: { alignItems: 'center', paddingTop: 120 },
-    itemName: { fontSize: 18, fontWeight: '600', color: '#E2E8F0', textAlign: 'center', marginBottom: 8 },
-    itemPrice: { fontSize: 16, fontWeight: 'bold', color: '#E53E3E' },
+    itemName: { fontSize: 18, fontWeight: '600', color: '#f1f5f9', textAlign: 'center', marginBottom: 8 },
+    itemPrice: { fontSize: 16, fontWeight: 'bold', color: '#38bdf8' },
     addToCartButton: { 
         position: 'absolute', 
         top: 20, 
         right: 20, 
-        backgroundColor: '#4A5568', 
+        backgroundColor: '#334155', 
         borderRadius: 20, 
         width: 40, 
         height: 40, 
@@ -297,31 +301,31 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         zIndex: 2,
     },
-    cartContainer: { width: 380, backgroundColor: '#2D3748', padding: 25, borderLeftWidth: 1, borderLeftColor: '#4A5568' },
-    cartTitle: { fontSize: 24, fontWeight: 'bold', color: '#E2E8F0', marginBottom: 20 },
-    cartItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderColor: '#4A5568' },
+    cartContainer: { width: 380, backgroundColor: '#1e293b', padding: 25, borderLeftWidth: 1, borderLeftColor: '#334155' },
+    cartTitle: { fontSize: 24, fontWeight: 'bold', color: '#f8fafc', marginBottom: 20 },
+    cartItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#334155' },
     cartItemImage: { width: 50, height: 50, borderRadius: 10 },
     cartItemDetails: { flex: 1, marginLeft: 15 },
-    cartItemName: { fontSize: 16, fontWeight: '500', color: '#E2E8F0' },
-    cartItemPrice: { fontSize: 14, color: '#A0AEC0' },
+    cartItemName: { fontSize: 16, fontWeight: '500', color: '#f1f5f9' },
+    cartItemPrice: { fontSize: 14, color: '#94a3b8' },
     quantityControl: { flexDirection: 'row', alignItems: 'center' },
-    quantityButton: { width: 28, height: 28, justifyContent: 'center', alignItems: 'center', backgroundColor: '#4A5568', borderRadius: 8 },
-    quantityButtonText: { fontSize: 18, color: '#E2E8F0', fontWeight: 'bold' },
-    quantityText: { fontSize: 16, fontWeight: '600', color: '#E2E8F0', marginHorizontal: 10 },
-    emptyCartText: { textAlign: 'center', color: '#A0AEC0', paddingVertical: 40, fontSize: 16 },
-    footer: { borderTopWidth: 1, borderColor: '#4A5568', paddingTop: 20, marginTop: 'auto' },
+    quantityButton: { width: 28, height: 28, justifyContent: 'center', alignItems: 'center', backgroundColor: '#334155', borderRadius: 8 },
+    quantityButtonText: { fontSize: 18, color: '#f1f5f9', fontWeight: 'bold' },
+    quantityText: { fontSize: 16, fontWeight: '600', color: '#f1f5f9', marginHorizontal: 10 },
+    emptyCartText: { textAlign: 'center', color: '#94a3b8', paddingVertical: 40, fontSize: 16 },
+    footer: { borderTopWidth: 1, borderColor: '#334155', paddingTop: 20, marginTop: 'auto' },
     totalContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-    totalText: { fontSize: 18, color: '#A0AEC0' },
-    totalAmount: { fontSize: 22, fontWeight: 'bold', color: '#E2E8F0' },
-    placeOrderButton: { backgroundColor: '#E53E3E', padding: 18, borderRadius: 15, alignItems: 'center' },
-    placeOrderButtonText: { color: '#1A202C', fontWeight: 'bold', fontSize: 18 },
-    disabledButton: { backgroundColor: '#718096' },
+    totalText: { fontSize: 18, color: '#94a3b8' },
+    totalAmount: { fontSize: 22, fontWeight: 'bold', color: '#f8fafc' },
+    placeOrderButton: { backgroundColor: '#38bdf8', padding: 18, borderRadius: 15, alignItems: 'center' },
+    placeOrderButtonText: { color: '#0f172a', fontWeight: 'bold', fontSize: 18 },
+    disabledButton: { backgroundColor: '#4b5563' },
     mobileCartButton: {
         position: 'absolute',
         bottom: 20,
         left: 20,
         right: 20,
-        backgroundColor: '#E53E3E',
+        backgroundColor: '#38bdf8',
         padding: 15,
         borderRadius: 15,
         flexDirection: 'row',
@@ -331,7 +335,7 @@ const styles = StyleSheet.create({
         elevation: 5,
     },
     mobileCartText: {
-        color: '#1A202C',
+        color: '#0f172a',
         fontWeight: 'bold',
         fontSize: 16,
         marginLeft: 10,
