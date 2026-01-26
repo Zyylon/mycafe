@@ -12,11 +12,13 @@ import {
   View,
   ScrollView,
 } from 'react-native';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
 import { ref, set } from 'firebase/database';
+import { initializeApp, getApp, deleteApp } from 'firebase/app'; 
 import * as Crypto from 'expo-crypto';
-import { auth, database } from '../lib/firebaseConfig';
+import { auth, database, firebaseConfig } from '../lib/firebaseConfig';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../context/AuthContext';
 
 const hashUsername = async (username: string) => {
   const digest = await Crypto.digestStringAsync(
@@ -28,11 +30,15 @@ const hashUsername = async (username: string) => {
 
 export default function CreateUserScreen() {
   const router = useRouter();
+  const { userData } = useAuth();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('staff');
   const [loading, setLoading] = useState(false);
+
+  const currentUserRole = userData?.role;
+  const isSuperAdmin = currentUserRole === 'superadmin';
 
   const handleCreateUser = async () => {
     if (!username || !email || !password) {
@@ -40,10 +46,23 @@ export default function CreateUserScreen() {
       return;
     }
 
+    if (role === 'superadmin' && !isSuperAdmin) {
+       Alert.alert('Permission Denied', 'Only Superadmins can create other Superadmins.');
+       return;
+    }
+
     setLoading(true);
+    let secondaryApp = null;
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const secondaryAppName = 'secondaryAppForUserCreation';
+      secondaryApp = initializeApp(firebaseConfig, secondaryAppName);
+      const secondaryAuth = getAuth(secondaryApp);
+
+      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
       const { uid } = userCredential.user;
+
+      await signOut(secondaryAuth);
+
       const hashedUsername = await hashUsername(username);
       await set(ref(database, `username_map/${hashedUsername}`), email.toLowerCase());
       await set(ref(database, `users/${uid}`), {
@@ -53,10 +72,11 @@ export default function CreateUserScreen() {
         createdAt: new Date().toISOString(),
       });
 
-      Alert.alert('Success', `User created successfully as ${role}!`)
+      Alert.alert('Success', `User created successfully as ${role}!`);
       router.back();
 
     } catch (error: any) {
+      console.error(error);
       let errorMessage = 'An error occurred while creating the user.';
       if (error.code === 'auth/email-already-in-use') {
         errorMessage = 'This email address is already in use.';
@@ -64,9 +84,14 @@ export default function CreateUserScreen() {
         errorMessage = 'Please enter a valid email address.';
       } else if (error.code === 'auth/weak-password') {
         errorMessage = 'The password is too weak. Please use at least 6 characters.';
+      } else {
+          errorMessage = error.message || errorMessage;
       }
       Alert.alert('Creation Failed', errorMessage);
     } finally {
+      if (secondaryApp) {
+        await deleteApp(secondaryApp);
+      }
       setLoading(false);
     }
   };
@@ -121,8 +146,21 @@ export default function CreateUserScreen() {
                     <Pressable style={({ pressed }) => [styles.roleButton, role === 'admin' && styles.activeRole, { opacity: pressed ? 0.7 : 1 }]} onPress={() => setRole('admin')}>
                         <Text style={[styles.roleButtonText, role === 'admin' && styles.activeRoleText]}>Admin</Text>
                     </Pressable>
-                    <Pressable style={({ pressed }) => [styles.roleButton, role === 'superadmin' && styles.activeRole, { opacity: pressed ? 0.7 : 1 }]} onPress={() => setRole('superadmin')}>
-                        <Text style={[styles.roleButtonText, role === 'superadmin' && styles.activeRoleText]}>Superadmin</Text>
+                    <Pressable 
+                        style={({ pressed }) => [
+                            styles.roleButton, 
+                            role === 'superadmin' && styles.activeRole, 
+                            !isSuperAdmin && styles.disabledRoleButton,
+                            { opacity: pressed ? 0.7 : 1 }
+                        ]} 
+                        onPress={() => isSuperAdmin && setRole('superadmin')}
+                        disabled={!isSuperAdmin}
+                    >
+                        <Text style={[
+                            styles.roleButtonText, 
+                            role === 'superadmin' && styles.activeRoleText,
+                            !isSuperAdmin && styles.disabledRoleText
+                        ]}>Superadmin</Text>
                     </Pressable>
                 </View>
 
@@ -195,6 +233,8 @@ const styles = StyleSheet.create({
   activeRole: { backgroundColor: '#38bdf8' },
   roleButtonText: { color: '#f1f5f9', fontWeight: 'bold', fontSize: 14 },
   activeRoleText: { color: '#0f172a' },
+  disabledRoleButton: { opacity: 0.5 },
+  disabledRoleText: { color: '#94a3b8' },
   button: { 
       width: '100%', 
       backgroundColor: '#38bdf8', 

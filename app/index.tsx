@@ -1,10 +1,10 @@
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, Pressable, View } from 'react-native';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { ref, get } from 'firebase/database';
 import * as Crypto from 'expo-crypto';
-import { auth, database } from '../../lib/firebaseConfig';
+import { useRouter } from 'expo-router';
+import { browserSessionPersistence, setPersistence, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { get, ref } from 'firebase/database';
+import React, { useState } from 'react';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { auth, database } from '../lib/firebaseConfig';
 
 const hashUsername = async (username: string) => {
   const digest = await Crypto.digestStringAsync(
@@ -28,9 +28,9 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
+      await setPersistence(auth, browserSessionPersistence);
       let email = loginInput;
 
-      // If the input doesn't look like an email, treat it as a username.
       if (!loginInput.includes('@')) {
         const hashedUsername = await hashUsername(loginInput);
         const mapRef = ref(database, `username_map/${hashedUsername}`);
@@ -39,24 +39,18 @@ export default function LoginScreen() {
         if (!mapSnapshot.exists()) {
           throw new Error('Username not found.');
         }
-        email = mapSnapshot.val(); // Get the email associated with the username
+        email = mapSnapshot.val();
       }
 
-      // Authenticate with Firebase Auth using the resolved email
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // Get user role from the Realtime Database to determine destination
       const userRef = ref(database, `users/${user.uid}`);
       const snapshot = await get(userRef);
 
       if (snapshot.exists()) {
-        const userData = snapshot.val();
-        if (userData.role === 'admin') {
-          router.replace('/admin-dashboard');
-        } else {
-          router.replace('/(tabs)/dashboard');
-        }
+        // Redirection is now handled by AuthContext or simplified here
+        router.replace('/(tabs)/dashboard');
       } else {
         await signOut(auth);
         throw new Error('User data not found in database.');
@@ -86,7 +80,7 @@ export default function LoginScreen() {
     >
       <View style={styles.card}>
         <Text style={styles.emoji}>☕</Text>
-        <Text style={styles.title}>Cafe Billing</Text>
+        <Text style={styles.title}>Slice n' Spice</Text>
         <Text style={styles.subtitle}>Sign in to continue</Text>
 
         <TextInput

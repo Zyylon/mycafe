@@ -1,10 +1,17 @@
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, Alert, Modal, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, ActivityIndicator, Alert, Modal, Platform, LayoutAnimation, UIManager } from 'react-native';
 import { database, auth } from '../lib/firebaseConfig';
 import { ref, onValue, off, remove } from 'firebase/database';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Ionicons } from '@expo/vector-icons';
+
+// Enable LayoutAnimation for Android
+if (Platform.OS === 'android') {
+  if (UIManager.setLayoutAnimationEnabledExperimental) {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+  }
+}
 
 interface OrderItemDetail {
     id: string;
@@ -28,7 +35,13 @@ export default function OrderHistoryScreen() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [currentUserRole, setCurrentUserRole] = useState('');
-    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+    
+    // Track expanded order ID
+    const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+
+    // Confirmation Modal State
+    const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+    const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
 
     useEffect(() => {
         const authUnsubscribe = onAuthStateChanged(auth, (user) => {
@@ -65,86 +78,123 @@ export default function OrderHistoryScreen() {
         return () => off(ordersRef, 'value', listener);
     };
 
-    const handleDelete = (orderId: string) => {
-        if (currentUserRole !== 'superadmin') {
-            return Alert.alert("Permission Denied", "Only superadmins can delete orders.");
-        }
-        Alert.alert("Confirm Deletion", "Permanently delete this order? This cannot be undone.", [
-            { text: "Cancel", style: "cancel" },
-            {
-                text: "Delete",
-                style: "destructive",
-                onPress: async () => {
-                    try {
-                        await remove(ref(database, `orders/${orderId}`));
-                        Alert.alert("Success", "Order deleted.");
-                        setSelectedOrder(null);
-                    } catch (error: any) {
-                        Alert.alert("Error", error.message);
-                    }
-                },
-            },
-        ]);
+    const toggleExpand = (id: string) => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setExpandedOrderId(prevId => prevId === id ? null : id);
     };
 
-    const renderOrderItem = ({ item }: { item: Order }) => (
-        <Pressable style={({ pressed }) => [styles.orderItem, { opacity: pressed ? 0.7 : 1 }]} onPress={() => setSelectedOrder(item)}>
-            <View style={styles.orderItemHeader}>
-                <Text style={styles.orderTitle}>Order #{item.orderNumber}</Text>
-                <Text style={styles.orderTotal}>PKR {item.total.toFixed(2)}</Text>
+    const confirmDelete = (order: Order) => {
+        if (currentUserRole !== 'superadmin') {
+            const msg = "Only superadmins can delete orders.";
+            if (Platform.OS === 'web') window.alert(msg);
+            else Alert.alert("Permission Denied", msg);
+            return;
+        }
+        setOrderToDelete(order);
+        setConfirmModalVisible(true);
+    };
+
+    const performDelete = async () => {
+        if (!orderToDelete) return;
+        
+        try {
+            await remove(ref(database, `orders/${orderToDelete.id}`));
+            setConfirmModalVisible(false);
+            setOrderToDelete(null);
+            // If the deleted order was expanded, collapse it (though it will disappear from list)
+            if (expandedOrderId === orderToDelete.id) {
+                setExpandedOrderId(null);
+            }
+        } catch (error: any) {
+            console.error("Delete error:", error);
+            if (Platform.OS === 'web') window.alert(error.message);
+            else Alert.alert("Error", error.message);
+        }
+    };
+
+    const renderOrderItem = ({ item }: { item: Order }) => {
+        const isExpanded = expandedOrderId === item.id;
+
+        return (
+            <View style={styles.orderItemContainer}>
+                <Pressable 
+                    style={({ pressed }) => [styles.orderItemHeader, { opacity: pressed ? 0.7 : 1 }]} 
+                    onPress={() => toggleExpand(item.id)}
+                >
+                    <View style={styles.headerTop}>
+                        <View style={{flexDirection: 'row', alignItems: 'center'}}>
+                            <Ionicons name={isExpanded ? "chevron-down" : "chevron-forward"} size={20} color="#94a3b8" style={{marginRight: 10}} />
+                            <Text style={styles.orderTitle}>Order #{item.orderNumber}</Text>
+                        </View>
+                        <Text style={styles.orderTotal}>PKR {item.total.toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.headerBottom}>
+                        <Text style={styles.orderInfo}>{item.customerName || 'Walk-in'} • {item.orderType}</Text>
+                        <Text style={styles.orderDate}>{new Date(item.date).toLocaleString()}</Text>
+                    </View>
+                </Pressable>
+
+                {isExpanded && (
+                    <View style={styles.orderDetails}>
+                        <View style={styles.separator} />
+                        {item.items.map((detail, index) => (
+                            <View key={detail.id + index} style={styles.itemDetail}>
+                                <Text style={styles.itemName}>{detail.name} <Text style={styles.itemQuantity}>x{detail.quantity}</Text></Text>
+                                <Text style={styles.itemPrice}>PKR {(detail.price * detail.quantity).toFixed(2)}</Text>
+                            </View>
+                        ))}
+                        
+                        {currentUserRole === 'superadmin' && (
+                            <View style={styles.actionRow}>
+                                <Pressable style={styles.inlineDeleteButton} onPress={() => confirmDelete(item)}>
+                                    <Ionicons name="trash-outline" size={18} color="#f8fafc" />
+                                    <Text style={styles.inlineDeleteText}>Delete Order</Text>
+                                </Pressable>
+                            </View>
+                        )}
+                    </View>
+                )}
             </View>
-            <View style={styles.orderItemFooter}>
-                <Text style={styles.orderInfo}>{item.customerName || 'Walk-in'} - {item.orderType}</Text>
-                <Text style={styles.orderDate}>{new Date(item.date).toLocaleString()}</Text>
-            </View>
-        </Pressable>
-    );
-    
-    const renderOrderDetailsModal = () => {
-        if (!selectedOrder) return null;
+        );
+    };
+
+    const renderConfirmationModal = () => {
         return (
             <Modal
-                animationType="slide"
+                animationType="fade"
                 transparent={true}
-                visible={!!selectedOrder}
-                onRequestClose={() => setSelectedOrder(null)}
+                visible={confirmModalVisible}
+                onRequestClose={() => setConfirmModalVisible(false)}
             >
-                <View style={styles.modalBackdrop}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Order #{selectedOrder.orderNumber}</Text>
-                            <Pressable onPress={() => setSelectedOrder(null)} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
-                                <Ionicons name="close-circle" size={28} color="#94a3b8" />
-                            </Pressable>
-                        </View>
-                        <FlatList
-                            data={selectedOrder.items}
-                            keyExtractor={(item) => item.id + Math.random()}
-                            renderItem={({ item }) => (
-                                <View style={styles.itemDetail}>
-                                    <Text style={styles.itemName}>{item.name} <Text style={styles.itemQuantity}>x{item.quantity}</Text></Text>
-                                    <Text style={styles.itemPrice}>PKR {(item.price * item.quantity).toFixed(2)}</Text>
-                                </View>
-                            )}
-                            contentContainerStyle={{ paddingBottom: 20 }}
-                        />
-                        <View style={styles.modalFooter}>
-                            <View style={styles.totalContainer}>
-                                <Text style={styles.totalText}>Total</Text>
-                                <Text style={styles.modalTotal}>PKR {selectedOrder.total.toFixed(2)}</Text>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.confirmModalContent}>
+                        <Ionicons name="alert-circle-outline" size={50} color="#ef4444" style={{ marginBottom: 10 }} />
+                        <Text style={styles.confirmTitle}>Delete Order?</Text>
+                        
+                        {orderToDelete && (
+                            <View style={styles.confirmDetails}>
+                                <Text style={styles.confirmText}><Text style={styles.confirmLabel}>Order #:</Text> {orderToDelete.orderNumber}</Text>
+                                <Text style={styles.confirmText}><Text style={styles.confirmLabel}>Customer:</Text> {orderToDelete.customerName || 'Walk-in'}</Text>
+                                <Text style={styles.confirmText}><Text style={styles.confirmLabel}>Date:</Text> {new Date(orderToDelete.date).toLocaleString()}</Text>
+                                <Text style={styles.confirmText}><Text style={styles.confirmLabel}>Total:</Text> PKR {orderToDelete.total.toFixed(2)}</Text>
                             </View>
-                            {currentUserRole === 'superadmin' && (
-                                <Pressable style={({ pressed }) => [styles.deleteButton, { opacity: pressed ? 0.7 : 1 }]} onPress={() => handleDelete(selectedOrder.id)}>
-                                    <Ionicons name="trash-outline" size={20} color="#f1f5f9" />
-                                    <Text style={styles.deleteButtonText}>Delete Order</Text>
-                                </Pressable>
-                            )}
+                        )}
+
+                        <Text style={styles.confirmWarning}>This action cannot be undone.</Text>
+
+                        <View style={styles.confirmButtonContainer}>
+                            <Pressable style={[styles.confirmButton, styles.cancelButton]} onPress={() => setConfirmModalVisible(false)}>
+                                <Text style={styles.confirmButtonText}>Cancel</Text>
+                            </Pressable>
+                            <Pressable style={[styles.confirmButton, styles.deleteConfirmButton]} onPress={performDelete}>
+                                <Text style={[styles.confirmButtonText, { color: '#0f172a' }]}>Delete</Text>
+                            </Pressable>
                         </View>
                     </View>
                 </View>
             </Modal>
         );
-    };
+    }
 
     return (
         <View style={styles.container}>
@@ -165,7 +215,7 @@ export default function OrderHistoryScreen() {
                     ListEmptyComponent={<Text style={styles.emptyText}>No past orders found.</Text>}
                 />
             )}
-            {renderOrderDetailsModal()}
+            {renderConfirmationModal()}
         </View>
     );
 }
@@ -176,26 +226,41 @@ const styles = StyleSheet.create({
     title: { fontSize: 22, fontWeight: 'bold', color: '#f8fafc' },
     backButton: { padding: 5 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    orderItem: { backgroundColor: '#1e293b', padding: 20, borderRadius: 12, marginBottom: 15, borderWidth: 1, borderColor: '#334155' },
-    orderItemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+    emptyText: { color: '#94a3b8', textAlign: 'center', marginTop: 50, fontSize: 16 },
+    
+    // Order Item Styles
+    orderItemContainer: { backgroundColor: '#1e293b', borderRadius: 12, marginBottom: 15, borderWidth: 1, borderColor: '#334155', overflow: 'hidden' },
+    orderItemHeader: { padding: 20 },
+    headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+    headerBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     orderTitle: { fontSize: 18, fontWeight: 'bold', color: '#f1f5f9' },
     orderTotal: { fontSize: 18, fontWeight: 'bold', color: '#38bdf8' },
-    orderItemFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     orderInfo: { fontSize: 14, color: '#94a3b8' },
-    orderDate: { fontSize: 14, color: '#94a3b8' },
-    emptyText: { color: '#94a3b8', textAlign: 'center', marginTop: 50, fontSize: 16 },
-    modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    modalContent: { backgroundColor: '#1e293b', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, height: '80%', shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 10, elevation: 5, borderTopWidth: 1, borderColor: '#334155' },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 15, marginBottom: 15, borderBottomWidth: 1, borderBottomColor: '#334155' },
-    modalTitle: { fontSize: 22, fontWeight: 'bold', color: '#f8fafc' },
-    itemDetail: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#334155' },
-    itemName: { color: '#f1f5f9', fontSize: 16, fontWeight: '500' },
-    itemQuantity: { color: '#94a3b8', fontSize: 14 },
-    itemPrice: { color: '#f1f5f9', fontSize: 16, fontWeight: 'bold' },
-    modalFooter: { marginTop: 'auto', borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 15 },
-    totalContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
-    totalText: { fontSize: 18, color: '#94a3b8', fontWeight: 'bold' },
-    modalTotal: { fontSize: 24, fontWeight: 'bold', color: '#38bdf8' },
-    deleteButton: { flexDirection: 'row', backgroundColor: '#be123c', padding: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    deleteButtonText: { color: '#f1f5f9', fontWeight: 'bold', fontSize: 16, marginLeft: 10 },
+    orderDate: { fontSize: 13, color: '#64748b' },
+    
+    // Expanded Details
+    orderDetails: { backgroundColor: '#1e293b', paddingHorizontal: 20, paddingBottom: 20 },
+    separator: { height: 1, backgroundColor: '#334155', marginBottom: 15 },
+    itemDetail: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
+    itemName: { color: '#cbd5e1', fontSize: 15 },
+    itemQuantity: { color: '#94a3b8', fontSize: 13 },
+    itemPrice: { color: '#f1f5f9', fontSize: 15, fontWeight: '600' },
+    
+    actionRow: { marginTop: 20, flexDirection: 'row', justifyContent: 'flex-end' },
+    inlineDeleteButton: { flexDirection: 'row', backgroundColor: '#be123c', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 8, alignItems: 'center' },
+    inlineDeleteText: { color: '#f8fafc', fontWeight: 'bold', fontSize: 14, marginLeft: 8 },
+
+    // Confirmation Modal Styles
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+    confirmModalContent: { backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400, borderWidth: 1, borderColor: '#334155', alignItems: 'center' },
+    confirmTitle: { fontSize: 20, fontWeight: 'bold', color: '#f8fafc', marginBottom: 15 },
+    confirmDetails: { width: '100%', backgroundColor: '#0f172a', padding: 15, borderRadius: 8, marginBottom: 15, borderLeftWidth: 3, borderLeftColor: '#ef4444' },
+    confirmText: { color: '#cbd5e1', fontSize: 14, marginBottom: 5 },
+    confirmLabel: { fontWeight: 'bold', color: '#94a3b8' },
+    confirmWarning: { color: '#ef4444', fontSize: 14, marginBottom: 20, fontStyle: 'italic' },
+    confirmButtonContainer: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', gap: 15 },
+    confirmButton: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+    cancelButton: { backgroundColor: '#334155' },
+    deleteConfirmButton: { backgroundColor: '#ef4444' },
+    confirmButtonText: { color: '#f8fafc', fontWeight: 'bold', fontSize: 16 },
 });

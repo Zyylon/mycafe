@@ -20,4 +20,4 @@ const auth = getAuth(app);
 const database = getDatabase(app);
 const storage = getStorage(app, `gs://${firebaseConfig.storageBucket}`);
 
-export { app, auth, database, storage };
+export { app, auth, database, storage, firebaseConfig };
