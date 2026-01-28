@@ -10,3 +10,25 @@ dist/
 # Firebase
 serviceAccountKey.json
 firebase-auth.json
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+app-example
+
+# generated native folders
+/ios
+/android
+serviceAccountKey.json
