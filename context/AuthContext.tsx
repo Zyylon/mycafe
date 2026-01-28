@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { ref, onValue } from 'firebase/database';
-import { auth, database } from '../lib/firebaseConfig';
+import { auth, database } from '../services/firebase';
 import { useRouter, useSegments } from 'expo-router';
 
 interface AuthState {
@@ -45,23 +45,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setLoading(false);
         });
 
-        window.addEventListener('load', resetTimer);
-        events.forEach(event => window.addEventListener(event, resetTimer));
-        resetInactivityTimer();
+        if (typeof window !== 'undefined') {
+            window.addEventListener('load', resetTimer);
+            events.forEach(event => window.addEventListener(event, resetTimer));
+            resetInactivityTimer();
+        }
 
       } else {
         setUser(null);
         setUserData(null);
         setLoading(false);
 
-        events.forEach(event => window.removeEventListener(event, resetTimer));
+        if (typeof window !== 'undefined') {
+            events.forEach(event => window.removeEventListener(event, resetTimer));
+        }
         if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
       }
     });
 
     return () => {
       unsubscribe();
-      events.forEach(event => window.removeEventListener(event, resetTimer));
+      if (typeof window !== 'undefined') {
+        events.forEach(event => window.removeEventListener(event, resetTimer));
+      }
       if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
     };
   }, []);
@@ -69,24 +75,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
 
-    const inAuthGroup = segments[0] === '(tabs)';
-    const isRoot = segments.length === 0; // Represents the '/' route (Login)
+    // Check if we are in the auth group (e.g. login page)
+    const inAuthGroup = segments[0] === 'auth'; 
 
-    if (user) {
-      // If user is logged in and explicitly on the Login page (root), redirect to Dashboard.
-      // We do NOT redirect if they are on other pages (like checkout, create-user), 
-      // allowing navigation to those routes.
-      if (isRoot) {
-        router.replace('/(tabs)/dashboard');
-      }
-    } else {
-      // If user is NOT logged in, they should only be on the Login page.
-      // If they are anywhere else, redirect to Login.
-      if (!isRoot) {
-        router.replace('/');
-      }
+    if (user && inAuthGroup) {
+      // If user is logged in but on the auth pages (login), redirect to dashboard
+      router.replace('/(tabs)/dashboard');
+    } else if (!user && !inAuthGroup) {
+      // If user is NOT logged in and NOT on an auth page, redirect to login
+      router.replace('/auth/login');
     }
-  }, [user, loading, segments, router]);
+  }, [user, loading, segments]);
 
   return (
     <AuthContext.Provider value={{ user, userData, loading }}>

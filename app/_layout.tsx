@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { AuthProvider } from '../context/AuthContext';
+import { PaperProvider } from 'react-native-paper';
 
 export const unstable_settings = {
   initialRouteName: '(tabs)',
@@ -10,9 +11,11 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <PaperProvider>
+        <AuthProvider>
+          <RootLayoutNav />
+        </AuthProvider>
+    </PaperProvider>
   );
 }
 
@@ -20,7 +23,8 @@ function RootLayoutNav() {
   return (
     <ThemeProvider value={DefaultTheme}>
       <Stack>
-        <Stack.Screen name="index" options={{ headerShown: false }} /> 
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="auth/login" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
         <Stack.Screen name="create-user" options={{ title: 'Create User',headerShown: false }} />
