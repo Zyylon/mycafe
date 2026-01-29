@@ -2,15 +2,9 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Rules for menu item images
-    match /menu_items/{imageId} {
-      // Allow anyone to read (view) the images.
-      // This is necessary so that users of the app can see the menu.
-      allow read;
-
-      // Allow write (upload, update, delete) only if the user is an authenticated admin.
-      // This rule checks the Realtime Database to see if the user's UID exists under the 'admins' node.
-      allow write: if request.auth != null && root.child('admins').child(request.auth.uid).exists();
+    match /{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.resource.size < 5 * 1024 * 1024;
     }
   }
 }

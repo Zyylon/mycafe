@@ -1,0 +1,9 @@
+
+[
+  {
+    "origin": ["https://kmo877q-anonymous-8081.exp.direct", "http://localhost:8081"],
+    "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "responseHeader": ["Content-Type", "Authorization"],
+    "maxAgeSeconds": 3600
+  }
+]

@@ -1,0 +1,30 @@
+name: Hourly Update Develop Branch
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  update-develop:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: 'develop'
+
+      - name: Configure Git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Add and commit changes
+        run: |
+          git add .
+          git commit -m "Automated hourly update" || echo "No changes to commit"
+
+      - name: Push changes
+        run: git push origin develop
