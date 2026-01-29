@@ -4,23 +4,55 @@ import { ref, onValue } from 'firebase/database';
 import { auth, database } from '../services/firebase';
 import { useRouter, useSegments } from 'expo-router';
 
-interface AuthState {
-  user: User | null;
-  userData: { role?: string; username?: string } | null;
-  loading: boolean;
+// --- Types ---
+interface MenuItem {
+    id: string;
+    name: string;
+    price: number;
+    imageUrl?: string;
+    categoryId: string;
+    description?: string;
 }
 
-const AuthContext = createContext<AuthState>({ user: null, userData: null, loading: true });
+interface CartItem extends MenuItem {
+    quantity: number;
+}
+
+interface AuthState {
+  user: User | null;
+  userData: { role?: string; username?: string; email?: string } | null;
+  loading: boolean;
+  cart: CartItem[];
+  setCart: React.Dispatch<React.SetStateAction<CartItem[]>>;
+  clearCart: () => void;
+}
+
+const AuthContext = createContext<AuthState>({ 
+    user: null, 
+    userData: null, 
+    loading: true, 
+    cart: [], 
+    setCart: () => {}, 
+    clearCart: () => {} 
+});
 
 export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [userData, setUserData] = useState<{ role?: string; username?: string } | null>(null);
+  const [userData, setUserData] = useState<{ role?: string; username?: string; email?: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // GLOBAL CART STATE
+  const [cart, setCart] = useState<CartItem[]>([]);
+
   const router = useRouter();
   const segments = useSegments();
   const inactivityTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const clearCart = () => {
+      setCart([]);
+  };
 
   const handleSignOut = () => {
     auth.signOut();
@@ -41,7 +73,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const userRef = ref(database, `users/${currentUser.uid}`);
         onValue(userRef, (snapshot) => {
           const dbUserData = snapshot.exists() ? snapshot.val() : {};
-          setUserData({ role: dbUserData.role || 'staff', username: dbUserData.username || 'Guest' });
+          setUserData({ 
+              role: dbUserData.role || 'staff', 
+              username: dbUserData.username || 'Guest',
+              email: dbUserData.email
+          });
           setLoading(false);
         });
 
@@ -55,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setUserData(null);
         setLoading(false);
+        setCart([]); // Clear cart on logout
 
         if (typeof window !== 'undefined') {
             events.forEach(event => window.removeEventListener(event, resetTimer));
@@ -75,20 +112,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
 
-    // Check if we are in the auth group (e.g. login page)
     const inAuthGroup = segments[0] === 'auth'; 
 
     if (user && inAuthGroup) {
-      // If user is logged in but on the auth pages (login), redirect to dashboard
       router.replace('/(tabs)/dashboard');
     } else if (!user && !inAuthGroup) {
-      // If user is NOT logged in and NOT on an auth page, redirect to login
       router.replace('/auth/login');
     }
   }, [user, loading, segments]);
 
   return (
-    <AuthContext.Provider value={{ user, userData, loading }}>
+    <AuthContext.Provider value={{ user, userData, loading, cart, setCart, clearCart }}>
       {children}
     </AuthContext.Provider>
   );

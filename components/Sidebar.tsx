@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import Animated, {
     Easing,
@@ -11,38 +11,50 @@ import Animated, {
     useAnimatedStyle,
     useSharedValue,
     withDelay,
-    withTiming
+    withTiming,
+    FadeIn,
+    FadeOut,
+    withSpring
 } from 'react-native-reanimated';
 import { useAuth } from '../context/AuthContext';
 import { auth } from '../services/firebase';
 
-// --- Configuration ---
-const EXPANDED_WIDTH = 280;
-const COLLAPSED_WIDTH = 90;
 const ANIM_DURATION = 400;
 const EASING = Easing.bezier(0.25, 0.1, 0.25, 1);
 
 export default function Sidebar() {
     const router = useRouter();
     const pathname = usePathname();
-    const { userData } = useAuth();
+    const { userData, cart } = useAuth();
+    const { width } = useWindowDimensions();
+
     const userRole = userData?.role;
     const isAdmin = userRole === 'admin' || userRole === 'superadmin';
-    
     const [isCollapsed, setIsCollapsed] = useState(false);
 
-    // Shared Values
-    const sidebarWidth = useSharedValue(EXPANDED_WIDTH);
+    // Dynamic Dimensions
+    const dims = useMemo(() => {
+        if (width > 2500) { 
+            return { expanded: 360, collapsed: 100, icon: 28, text: 18, header: 16, itemHeight: 64 };
+        } else if (width < 1400) { 
+            return { expanded: 240, collapsed: 72, icon: 20, text: 13, header: 11, itemHeight: 48 };
+        } else {
+            return { expanded: 280, collapsed: 84, icon: 24, text: 14, header: 13, itemHeight: 52 };
+        }
+    }, [width]);
+
+    const sidebarWidth = useSharedValue(dims.expanded);
     const contentOpacity = useSharedValue(1); 
     const creditsHeight = useSharedValue(20); 
+    const rotation = useSharedValue(0);
 
-    const handleSignOut = () => {
-        auth.signOut();
-    };
+    useEffect(() => {
+        const targetWidth = isCollapsed ? dims.collapsed : dims.expanded;
+        sidebarWidth.value = withSpring(targetWidth, { damping: 20, stiffness: 90 });
+    }, [width, dims, isCollapsed]);
 
-    const handleNavigate = (path: string) => {
-        router.push(path as any);
-    };
+    const handleSignOut = () => { auth.signOut(); };
+    const handleNavigate = (path: string) => { router.push(path as any); };
 
     const isActive = (path: string) => {
         const normalize = (p: string) => p.replace(/\/\([^)]+\)/g, '');
@@ -54,28 +66,27 @@ export default function Sidebar() {
     const toggleSidebar = () => {
         const nextState = !isCollapsed;
         setIsCollapsed(nextState);
-        
+        rotation.value = withSpring(nextState ? 180 : 0, { damping: 15 });
+
         if (nextState) {
-            // COLLAPSING
-            contentOpacity.value = withTiming(0, { duration: 150, easing: EASING });
-            sidebarWidth.value = withDelay(50, withTiming(COLLAPSED_WIDTH, { duration: ANIM_DURATION, easing: EASING }));
+            contentOpacity.value = withTiming(0, { duration: 150 });
             creditsHeight.value = withTiming(0, { duration: 200 }); 
         } else {
-            // EXPANDING
-            sidebarWidth.value = withTiming(EXPANDED_WIDTH, { duration: ANIM_DURATION, easing: EASING });
-            contentOpacity.value = withDelay(150, withTiming(1, { duration: 250, easing: EASING }));
+            contentOpacity.value = withDelay(150, withTiming(1, { duration: 250 }));
             creditsHeight.value = withDelay(200, withTiming(20, { duration: 200 })); 
         }
     };
 
-    const animatedSidebarStyle = useAnimatedStyle(() => ({
-        width: sidebarWidth.value,
+    const animatedSidebarStyle = useAnimatedStyle(() => ({ width: sidebarWidth.value }));
+
+    const animatedContentStyle = useAnimatedStyle(() => ({
+        opacity: contentOpacity.value,
+        transform: [{ translateX: interpolate(contentOpacity.value, [0, 1], [-20, 0]) }]
     }));
 
-    const animatedContentStyle = useAnimatedStyle(() => {
-        const width = interpolate(contentOpacity.value, [0, 1], [0, 150], Extrapolation.CLAMP);
-        return { opacity: contentOpacity.value, width: width };
-    });
+    const animatedToggleStyle = useAnimatedStyle(() => ({
+        transform: [{ rotate: `${rotation.value}deg` }]
+    }));
 
     const animatedCreditsStyle = useAnimatedStyle(() => ({
         opacity: contentOpacity.value,
@@ -83,69 +94,65 @@ export default function Sidebar() {
         marginTop: interpolate(contentOpacity.value, [0, 1], [0, 16])
     }));
 
-    // --- Components ---
-
     const SectionHeader = ({ icon, label }: { icon: any, label: string }) => {
-        // Opacity 1 when Expanded (Width 280), 0 when Collapsed (Width 90)
-        const grayIconStyle = useAnimatedStyle(() => ({
-            opacity: interpolate(sidebarWidth.value, [COLLAPSED_WIDTH, EXPANDED_WIDTH], [0, 1]),
-            position: 'absolute'
-        }));
-
-        // Opacity 1 when Collapsed, 0 when Expanded
         const whiteIconStyle = useAnimatedStyle(() => ({
-            opacity: interpolate(sidebarWidth.value, [COLLAPSED_WIDTH, EXPANDED_WIDTH], [1, 0]),
-            // Small scale effect for pop
-            transform: [{ scale: interpolate(sidebarWidth.value, [COLLAPSED_WIDTH, EXPANDED_WIDTH], [1.1, 0.8]) }] 
+            opacity: interpolate(sidebarWidth.value, [dims.collapsed, dims.expanded], [1, 0], Extrapolation.CLAMP),
+            transform: [{ scale: interpolate(sidebarWidth.value, [dims.collapsed, dims.expanded], [1.1, 0.8], Extrapolation.CLAMP) }] 
         }));
-
         return (
             <View style={styles.sectionHeaderContainer}>
-                <View style={styles.fixedIconColumn}>
-                    {/* 1. Normal Gray Icon (Visible when expanded) */}
-                    <Animated.View style={grayIconStyle}>
-                        <Ionicons name={icon} size={22} color="#94a3b8" />
-                    </Animated.View>
-
-                    {/* 2. Glowing White Icon (Visible when collapsed) */}
+                <View style={[styles.fixedIconColumn, { width: dims.collapsed - 32, height: dims.itemHeight }]}>
                     <Animated.View style={whiteIconStyle}>
-                        <Ionicons 
-                            name={icon} 
-                            size={22} 
-                            color="#ffffff" 
-                            style={{ 
-                                textShadowColor: 'rgba(56, 189, 248, 0.8)', 
-                                textShadowRadius: 10 
-                            }} 
-                        />
+                        <Ionicons name={icon} size={dims.icon} color="#38bdf8" />
                     </Animated.View>
                 </View>
-                
                 <Animated.View style={[animatedContentStyle, styles.labelContainer]}>
-                    <Text style={styles.sidebarHeader} variant="labelLarge">{label}</Text>
+                    <Text style={{ fontWeight: '800', color: '#64748b', letterSpacing: 1, fontSize: dims.header }}>{label}</Text>
                 </Animated.View>
             </View>
         );
     };
 
-    const HoverableMenuItem = ({ path, icon, label, isSignOut = false, onPress }: any) => {
+    const HoverableMenuItem = ({ path, icon, label, isSignOut = false, onPress, showBadge = false, badgeCount = 0 }: any) => {
         const active = !isSignOut && isActive(path);
         const hoverVal = useSharedValue(0);
 
         const animatedHoverStyle = useAnimatedStyle(() => {
             const bgColor = isSignOut 
-                ? interpolateColor(hoverVal.value, [0, 1], ['rgba(239, 68, 68, 0.1)', 'rgba(239, 68, 68, 0.2)'])
+                ? interpolateColor(hoverVal.value, [0, 1], ['rgba(239, 68, 68, 0.05)', 'rgba(239, 68, 68, 0.15)'])
                 : active 
                     ? '#38bdf8' 
-                    : interpolateColor(hoverVal.value, [0, 1], ['transparent', 'rgba(56, 189, 248, 0.1)']);
-
+                    : interpolateColor(hoverVal.value, [0, 1], ['transparent', 'rgba(56, 189, 248, 0.08)']);
+            
             const scale = interpolate(hoverVal.value, [0, 1], [1, 1.02]);
-            return { backgroundColor: bgColor, transform: [{ scale }] };
+            const shadowOpacity = active ? withSpring(0.4) : withSpring(0);
+            const shadowRadius = active ? withSpring(12) : withSpring(0);
+
+            // FIX: Morphing logic to ensure a perfect circle when collapsed
+            const itemWidth = interpolate(sidebarWidth.value, [dims.collapsed, dims.expanded], [dims.itemHeight, dims.expanded - 32], Extrapolation.CLAMP);
+            const borderRadius = dims.itemHeight / 2;
+
+            return { 
+                backgroundColor: bgColor, 
+                transform: [{ scale }],
+                width: itemWidth,
+                height: dims.itemHeight,
+                borderRadius: borderRadius,
+                shadowColor: '#38bdf8',
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: shadowOpacity,
+                shadowRadius: shadowRadius,
+                alignSelf: 'center' as any
+            };
         });
 
         const iconName = active ? icon : (icon.endsWith('-outline') ? icon : icon + '-outline');
-        const iconColor = isSignOut ? "#ef4444" : active ? "#0f172a" : "#64748b"; 
-        const textColor = isSignOut ? styles.signOutText : [styles.sideItemText, active && styles.sideItemTextActive];
+        const iconColor = isSignOut ? "#ef4444" : active ? "#0f172a" : "#94a3b8"; 
+        const baseTextStyle = { fontSize: dims.text, fontWeight: '600' as const };
+        const activeTextStyle = { fontWeight: '700' as const, color: '#0f172a' };
+        const textStyle = isSignOut 
+            ? { ...baseTextStyle, color: '#ef4444' }
+            : [ { ...baseTextStyle, color: '#94a3b8' }, active && activeTextStyle ];
 
         return (
             <Pressable 
@@ -155,46 +162,69 @@ export default function Sidebar() {
                 style={styles.pressableWrapper}
             >
                 <Animated.View style={[styles.sideItem, animatedHoverStyle]}>
-                    <View style={styles.fixedIconColumn}>
-                        <Ionicons name={iconName} size={20} color={iconColor} />
+                    <View style={[styles.fixedIconColumn, { width: dims.itemHeight, height: dims.itemHeight }]}>
+                        <Ionicons name={iconName} size={dims.icon} color={iconColor} />
+                        {showBadge && badgeCount > 0 && (
+                            <View style={styles.badge}>
+                                <Text style={styles.badgeText}>{badgeCount}</Text>
+                            </View>
+                        )}
                     </View>
                     <Animated.View style={[styles.labelContainer, animatedContentStyle]}>
-                        <Text style={textColor} numberOfLines={1} variant="bodyLarge">{label}</Text>
+                        <Text style={textStyle} numberOfLines={1}>{label}</Text>
                     </Animated.View>
                 </Animated.View>
             </Pressable>
         );
     };
 
+    const renderHomeSlot = () => {
+        const isCheckoutActive = pathname === '/checkout';
+        const hasCartItems = cart.length > 0;
+        const showCheckout = isCheckoutActive || (pathname !== '/dashboard' && hasCartItems);
+
+        if (showCheckout) {
+            return (
+                <Animated.View key="checkout" entering={FadeIn.duration(300)} exiting={FadeOut.duration(300)}>
+                    <HoverableMenuItem 
+                        path="/checkout" 
+                        icon="cart" 
+                        label="Checkout" 
+                        showBadge={hasCartItems} 
+                        badgeCount={cart.reduce((a, b) => a + b.quantity, 0)} 
+                    />
+                </Animated.View>
+            );
+        }
+
+        return (
+            <Animated.View key="menu" entering={FadeIn.duration(300)} exiting={FadeOut.duration(300)}>
+                <HoverableMenuItem path="/dashboard" icon="restaurant" label="Menu Catalog" />
+            </Animated.View>
+        );
+    };
+
     return (
         <View style={styles.sidebarWrapper}>
             <Animated.View style={[styles.sidebar, animatedSidebarStyle]}>
-                 
-                 {/* Header (Toggle) */}
                  <View style={styles.headerContainer}>
-                    <View style={styles.fixedIconColumn}>
-                        <Pressable 
-                            onPress={toggleSidebar} 
-                            style={({ pressed }) => [styles.toggleBtn, pressed && { opacity: 0.7 }]}
-                        >
-                            <Ionicons name={isCollapsed ? "menu" : "chevron-back"} size={20} color="#f8fafc" />
+                    <View style={[styles.fixedIconColumn, { width: dims.collapsed - 32, height: 48 }]}>
+                        <Pressable onPress={toggleSidebar} style={styles.toggleBtn}>
+                            <Animated.View style={animatedToggleStyle}>
+                                <Ionicons name="chevron-back" size={24} color="#f8fafc" />
+                            </Animated.View>
                         </Pressable>
                     </View>
                  </View>
 
-                {/* Main Menu */}
                 <View style={styles.menuContainer}>
-                    
-                    {/* HOME Section */}
                     <SectionHeader icon="home" label="HOME" />
-                    <HoverableMenuItem path="/dashboard" icon="restaurant" label="Menu Catalog" />
+                    {renderHomeSlot()}
 
-                    {/* ADMIN Section */}
                     {isAdmin && (
                         <>
                             <View style={styles.adminSpacer} />
                             <SectionHeader icon="shield-checkmark" label="ADMIN" />
-
                             <HoverableMenuItem path="/create-user" icon="person-add" label="Create User" />
                             <HoverableMenuItem path="/add-menu-item" icon="cube" label="Inventory & Menu" />
                             <HoverableMenuItem path="/manage-users" icon="people" label="Manage Users" />
@@ -203,19 +233,10 @@ export default function Sidebar() {
                     )}
                 </View>
 
-                {/* Footer */}
                 <View style={styles.sidebarFooter}>
                     <HoverableMenuItem path="/settings" icon="settings" label="Settings" />
+                    <HoverableMenuItem path="sign-out" icon="log-out" label="Sign Out" isSignOut={true} onPress={handleSignOut} />
                     
-                    <HoverableMenuItem 
-                        path="sign-out" 
-                        icon="log-out" 
-                        label="Sign Out" 
-                        isSignOut={true} 
-                        onPress={handleSignOut} 
-                    />
-                    
-                    {/* Credits */}
                     <Animated.View style={[styles.creditsContainer, animatedCreditsStyle]}>
                         <Text style={styles.creditsText}>Designed by Infinity Crafters</Text>
                     </Animated.View>
@@ -226,126 +247,20 @@ export default function Sidebar() {
 }
 
 const styles = StyleSheet.create({
-    sidebarWrapper: {
-        height: '100%',
-        padding: 24, 
-        backgroundColor: '#0f172a',
-    },
-    sidebar: {
-        backgroundColor: '#1e293b',
-        paddingVertical: 24,
-        paddingHorizontal: 16, 
-        justifyContent: 'space-between',
-        height: '100%',
-        borderRadius: 24, 
-        borderWidth: 1,
-        borderColor: '#334155',
-        shadowColor: "#000",
-        shadowOffset: { width: 4, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 10,
-        ...Platform.select({
-            web: { boxShadow: '4px 0 24px rgba(0, 0, 0, 0.2)' },
-            default: { elevation: 10 }
-        }),
-        overflow: 'hidden',
-    },
-    
-    headerContainer: {
-        marginBottom: 32,
-        width: '100%',
-        height: 40, 
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    toggleBtn: {
-        width: 36, 
-        height: 36, 
-        borderRadius: 10, 
-        backgroundColor: '#334155', 
-        justifyContent: 'center', 
-        alignItems: 'center',
-        ...Platform.select({ web: { cursor: 'pointer', transition: 'background-color 0.2s' } })
-    },
-
-    menuContainer: {
-        flex: 1, 
-        width: '100%',
-    },
-    
-    sectionHeaderContainer: {
-        height: 40, 
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 4,
-        marginTop: 8,
-    },
-    sidebarHeader: {
-        fontWeight: '800', 
-        color: '#f1f5f9', 
-        letterSpacing: 0.5,
-        fontSize: 13, 
-    },
-    adminSpacer: {
-        height: 32, 
-        width: '100%',
-    },
-
-    pressableWrapper: {
-        marginBottom: 4,
-        width: '100%',
-    },
-    sideItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderRadius: 12, 
-        width: '100%',
-        height: 48,
-        ...Platform.select({ web: { cursor: 'pointer' } }),
-    },
-    
-    // Fixed container for Icons to ensure they stack and align
-    fixedIconColumn: {
-        width: 58, 
-        alignItems: 'center',
-        justifyContent: 'center',
-        position: 'relative', // Necessary for absolute children
-    },
-    
-    labelContainer: {
-        overflow: 'hidden',
-        whiteSpace: 'nowrap',
-        justifyContent: 'center',
-    },
-    sideItemText: {
-        color: '#94a3b8',
-        fontWeight: '500', 
-        fontSize: 14,
-    },
-    sideItemTextActive: {
-        color: '#0f172a',
-        fontWeight: '700',
-    },
-    
-    sidebarFooter: {
-        width: '100%',
-        borderTopWidth: 1,
-        borderTopColor: '#334155',
-        paddingTop: 16,
-    },
-    signOutText: {
-        color: '#ef4444',
-        fontWeight: 'bold',
-        fontSize: 14,
-    },
-    creditsContainer: {
-        paddingLeft: 12,
-        overflow: 'hidden', 
-    },
-    creditsText: {
-        fontSize: 10,
-        color: '#64748b',
-        fontWeight: '500',
-        fontStyle: 'italic',
-    },
+    sidebarWrapper: { height: '100%', padding: 24, backgroundColor: '#0f172a' },
+    sidebar: { backgroundColor: '#1e293b', paddingVertical: 24, paddingHorizontal: 16, justifyContent: 'space-between', height: '100%', borderRadius: 32, borderWidth: 1, borderColor: '#334155', shadowColor: "#000", shadowOffset: { width: 4, height: 4 }, shadowOpacity: 0.3, shadowRadius: 16, overflow: 'hidden' },
+    headerContainer: { marginBottom: 32, width: '100%', height: 48, flexDirection: 'row', alignItems: 'center' },
+    toggleBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#334155', justifyContent: 'center', alignItems: 'center' },
+    menuContainer: { flex: 1, width: '100%' },
+    sectionHeaderContainer: { height: 40, flexDirection: 'row', alignItems: 'center', marginBottom: 8, marginTop: 12 },
+    adminSpacer: { height: 24, width: '100%' },
+    pressableWrapper: { marginBottom: 6, width: '100%' },
+    sideItem: { flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
+    fixedIconColumn: { alignItems: 'center', justifyContent: 'center', position: 'relative' },
+    labelContainer: { overflow: 'hidden', justifyContent: 'center' },
+    sidebarFooter: { width: '100%', borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 16 },
+    creditsContainer: { paddingLeft: 12, overflow: 'hidden' },
+    creditsText: { fontSize: 10, color: '#64748b', fontWeight: '500', fontStyle: 'italic' },
+    badge: { position: 'absolute', top: 4, right: 4, backgroundColor: '#ef4444', borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#1e293b' },
+    badgeText: { color: 'white', fontSize: 10, fontWeight: 'bold' }
 });

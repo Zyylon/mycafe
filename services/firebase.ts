@@ -7,7 +7,7 @@ import { getStorage } from "firebase/storage";
 const firebaseConfig = {
   "projectId": "cafeproject-69d9d",
   "appId": "1:944166763222:web:1daf65597fb9a28fbce777",
-  "storageBucket": "cafeproject-69d9d",
+  "storageBucket": "cafeproject-69d9d.firebasestorage.app",
   "apiKey": "AIzaSyB1J_iMzJLjlGlnOzn0m-c1lrjr0Jt684c",
   "authDomain": "cafeproject-69d9d.firebaseapp.com",
   "messagingSenderId": "944166763222",
@@ -18,6 +18,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const database = getDatabase(app);
-const storage = getStorage(app, `gs://${firebaseConfig.storageBucket}`);
+const storage = getStorage(app);
 
-export { app, auth, database, storage, firebaseConfig };
+export { app, auth, database, firebaseConfig, storage };
+

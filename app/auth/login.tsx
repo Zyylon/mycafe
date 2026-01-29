@@ -1,7 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import { useRouter } from 'expo-router';
 import { browserSessionPersistence, setPersistence, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { get, ref } from 'firebase/database';
+import { get, ref, push, set } from 'firebase/database';
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   ActivityIndicator, 
@@ -42,7 +42,6 @@ export default function LoginScreen() {
   const [isPasswordVisible, setIsPasswordVisible] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
-  // NEW: Track which field is focused ('identity' or 'password')
   const [focusedField, setFocusedField] = useState<'identity' | 'password' | null>(null);
 
   const shakeAnimation = useRef(new Animated.Value(0)).current;
@@ -101,6 +100,38 @@ export default function LoginScreen() {
             await signOut(auth);
             throw { code: 'custom/account-disabled' };
         }
+
+        // --- RECORD LOGIN HISTORY WITH IP ---
+        try {
+            // Fetch public IP with a timeout
+            const ipPromise = fetch('https://api.ipify.org?format=json')
+                .then(res => res.json())
+                .then(data => data.ip)
+                .catch(() => 'Unknown IP');
+                
+            // Race against a 2-second timeout to prevent hanging
+            const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('Timeout IP'), 2000));
+            const ipAddress = await Promise.race([ipPromise, timeoutPromise]);
+
+            const historyRef = ref(database, `users/${user.uid}/loginHistory`);
+            const newHistoryRef = push(historyRef);
+            
+            const deviceInfo = Platform.OS === 'web' 
+                ? navigator.userAgent 
+                : `${Platform.OS} ${Platform.Version}`;
+
+            await set(newHistoryRef, {
+                timestamp: Date.now(),
+                date: new Date().toISOString(),
+                device: deviceInfo,
+                platform: Platform.OS,
+                ip: ipAddress
+            });
+        } catch (logError) {
+            console.warn("Failed to log login history:", logError);
+        }
+        // -----------------------------
+
         router.replace('/(tabs)/dashboard');
       } else {
         await signOut(auth);
@@ -178,13 +209,11 @@ export default function LoginScreen() {
                 <View style={[
                     styles.inputWrapper, 
                     errorMessage && styles.inputErrorBorder,
-                    // Apply focus style conditionally
                     focusedField === 'identity' && styles.inputWrapperFocused
                 ]}>
                     <Ionicons 
                         name="person-outline" 
                         size={20} 
-                        // Change icon color on focus
                         color={focusedField === 'identity' ? "#38bdf8" : "#64748b"} 
                         style={styles.inputIcon} 
                     />
@@ -197,7 +226,6 @@ export default function LoginScreen() {
                         autoCapitalize="none"
                         returnKeyType="next"
                         onSubmitEditing={() => passwordInputRef.current?.focus()}
-                        // Track Focus
                         onFocus={() => setFocusedField('identity')}
                         onBlur={() => setFocusedField(null)}
                     />
@@ -228,7 +256,6 @@ export default function LoginScreen() {
                         onChangeText={setPassword}
                         returnKeyType="go"
                         onSubmitEditing={handleLogin}
-                        // Track Focus
                         onFocus={() => setFocusedField('password')}
                         onBlur={() => setFocusedField(null)}
                     />
@@ -298,14 +325,12 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#0f172a',
     borderRadius: 16, borderWidth: 1, borderColor: '#334155', height: 56, paddingHorizontal: 16,
-    // Smooth transition for color changes
     ...Platform.select({ web: { transition: 'border-color 0.2s ease, box-shadow 0.2s ease' } })
   },
   
-  // FOCUSED STATE (The outline you want)
+  // FOCUSED STATE
   inputWrapperFocused: {
     borderColor: '#38bdf8', // Sky Blue Border
-    // Glow effect (Web only)
     ...Platform.select({
       web: { boxShadow: '0 0 0 4px rgba(56, 189, 248, 0.2)' },
       default: { shadowColor: '#38bdf8', shadowOpacity: 0.3, shadowRadius: 4, elevation: 4 }
@@ -317,7 +342,6 @@ const styles = StyleSheet.create({
   
   input: { 
       flex: 1, height: '100%', fontSize: 16, color: '#f8fafc',
-      // Disable default browser outline
       ...Platform.select({ web: { outlineStyle: 'none' } })
   },
   
