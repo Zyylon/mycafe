@@ -1,266 +1,345 @@
 import { Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { Text } from 'react-native-paper';
-import Animated, {
-    Easing,
-    Extrapolation,
-    interpolate,
-    interpolateColor,
-    useAnimatedStyle,
-    useSharedValue,
-    withDelay,
+import React, { useMemo, useState, useRef, useEffect } from 'react';
+import { Pressable, StyleSheet, Text, View, Platform, useWindowDimensions } from 'react-native';
+import Animated, { 
+    FadeIn, 
+    FadeOut, 
+    ZoomIn, 
+    ZoomOut,
+    SlideInLeft,
+    useAnimatedStyle, 
+    useSharedValue, 
+    withSpring, 
     withTiming,
-    FadeIn,
-    FadeOut,
-    withSpring
+    Layout
 } from 'react-native-reanimated';
 import { useAuth } from '../context/AuthContext';
 import { auth } from '../services/firebase';
 
-const ANIM_DURATION = 400;
-const EASING = Easing.bezier(0.25, 0.1, 0.25, 1);
+// --- Configuration ---
+const RAIL_WIDTH = 68;
+const ICON_SIZE = 24;
+const MENU_OFFSET = 96; 
 
 export default function Sidebar() {
+    // 1. Hooks (Always at top)
     const router = useRouter();
     const pathname = usePathname();
-    const { userData, cart } = useAuth();
-    const { width } = useWindowDimensions();
-
-    const userRole = userData?.role;
-    const isAdmin = userRole === 'admin' || userRole === 'superadmin';
-    const [isCollapsed, setIsCollapsed] = useState(false);
-
-    // Dynamic Dimensions
-    const dims = useMemo(() => {
-        if (width > 2500) { 
-            return { expanded: 360, collapsed: 100, icon: 28, text: 18, header: 16, itemHeight: 64 };
-        } else if (width < 1400) { 
-            return { expanded: 240, collapsed: 72, icon: 20, text: 13, header: 11, itemHeight: 48 };
-        } else {
-            return { expanded: 280, collapsed: 84, icon: 24, text: 14, header: 13, itemHeight: 52 };
-        }
-    }, [width]);
-
-    const sidebarWidth = useSharedValue(dims.expanded);
-    const contentOpacity = useSharedValue(1); 
-    const creditsHeight = useSharedValue(20); 
-    const rotation = useSharedValue(0);
-
-    useEffect(() => {
-        const targetWidth = isCollapsed ? dims.collapsed : dims.expanded;
-        sidebarWidth.value = withSpring(targetWidth, { damping: 20, stiffness: 90 });
-    }, [width, dims, isCollapsed]);
-
-    const handleSignOut = () => { auth.signOut(); };
-    const handleNavigate = (path: string) => { router.push(path as any); };
-
-    const isActive = (path: string) => {
-        const normalize = (p: string) => p.replace(/\/\([^)]+\)/g, '');
-        const current = normalize(pathname);
-        const target = normalize(path);
-        return current === target || current.startsWith(target + '/');
-    };
+    const { userData } = useAuth();
     
-    const toggleSidebar = () => {
-        const nextState = !isCollapsed;
-        setIsCollapsed(nextState);
-        rotation.value = withSpring(nextState ? 180 : 0, { damping: 15 });
+    const [activeCategory, setActiveCategory] = useState<string | null>(null);
+    const [menuAnchor, setMenuAnchor] = useState<{ y: number, anchor: 'top' | 'bottom' } | null>(null);
+    const layoutMap = useRef<Record<string, number>>({});
 
-        if (nextState) {
-            contentOpacity.value = withTiming(0, { duration: 150 });
-            creditsHeight.value = withTiming(0, { duration: 200 }); 
-        } else {
-            contentOpacity.value = withDelay(150, withTiming(1, { duration: 250 }));
-            creditsHeight.value = withDelay(200, withTiming(20, { duration: 200 })); 
+    const role = userData?.role || 'staff';
+    const isAdmin = role === 'admin' || role === 'superadmin';
+    const isStaff = role === 'staff';
+    const isKitchen = role === 'kitchen';
+
+    // 2. Menu Logic
+    const MENUS = useMemo(() => {
+        const homeItems = [{ label: 'Catalog', icon: 'grid', route: '/dashboard' }];
+        
+        if (isAdmin || isStaff) {
+            homeItems.push({ label: 'Ongoing Orders', icon: 'hourglass', route: '/ongoing-orders' });
         }
-    };
-
-    const animatedSidebarStyle = useAnimatedStyle(() => ({ width: sidebarWidth.value }));
-
-    const animatedContentStyle = useAnimatedStyle(() => ({
-        opacity: contentOpacity.value,
-        transform: [{ translateX: interpolate(contentOpacity.value, [0, 1], [-20, 0]) }]
-    }));
-
-    const animatedToggleStyle = useAnimatedStyle(() => ({
-        transform: [{ rotate: `${rotation.value}deg` }]
-    }));
-
-    const animatedCreditsStyle = useAnimatedStyle(() => ({
-        opacity: contentOpacity.value,
-        height: creditsHeight.value,
-        marginTop: interpolate(contentOpacity.value, [0, 1], [0, 16])
-    }));
-
-    const SectionHeader = ({ icon, label }: { icon: any, label: string }) => {
-        const whiteIconStyle = useAnimatedStyle(() => ({
-            opacity: interpolate(sidebarWidth.value, [dims.collapsed, dims.expanded], [1, 0], Extrapolation.CLAMP),
-            transform: [{ scale: interpolate(sidebarWidth.value, [dims.collapsed, dims.expanded], [1.1, 0.8], Extrapolation.CLAMP) }] 
-        }));
-        return (
-            <View style={styles.sectionHeaderContainer}>
-                <View style={[styles.fixedIconColumn, { width: dims.collapsed - 32, height: dims.itemHeight }]}>
-                    <Animated.View style={whiteIconStyle}>
-                        <Ionicons name={icon} size={dims.icon} color="#38bdf8" />
-                    </Animated.View>
-                </View>
-                <Animated.View style={[animatedContentStyle, styles.labelContainer]}>
-                    <Text style={{ fontWeight: '800', color: '#64748b', letterSpacing: 1, fontSize: dims.header }}>{label}</Text>
-                </Animated.View>
-            </View>
-        );
-    };
-
-    const HoverableMenuItem = ({ path, icon, label, isSignOut = false, onPress, showBadge = false, badgeCount = 0 }: any) => {
-        const active = !isSignOut && isActive(path);
-        const hoverVal = useSharedValue(0);
-
-        const animatedHoverStyle = useAnimatedStyle(() => {
-            const bgColor = isSignOut 
-                ? interpolateColor(hoverVal.value, [0, 1], ['rgba(239, 68, 68, 0.05)', 'rgba(239, 68, 68, 0.15)'])
-                : active 
-                    ? '#38bdf8' 
-                    : interpolateColor(hoverVal.value, [0, 1], ['transparent', 'rgba(56, 189, 248, 0.08)']);
-            
-            const scale = interpolate(hoverVal.value, [0, 1], [1, 1.02]);
-            const shadowOpacity = active ? withSpring(0.4) : withSpring(0);
-            const shadowRadius = active ? withSpring(12) : withSpring(0);
-
-            // FIX: Morphing logic to ensure a perfect circle when collapsed
-            const itemWidth = interpolate(sidebarWidth.value, [dims.collapsed, dims.expanded], [dims.itemHeight, dims.expanded - 32], Extrapolation.CLAMP);
-            const borderRadius = dims.itemHeight / 2;
-
-            return { 
-                backgroundColor: bgColor, 
-                transform: [{ scale }],
-                width: itemWidth,
-                height: dims.itemHeight,
-                borderRadius: borderRadius,
-                shadowColor: '#38bdf8',
-                shadowOffset: { width: 0, height: 0 },
-                shadowOpacity: shadowOpacity,
-                shadowRadius: shadowRadius,
-                alignSelf: 'center' as any
-            };
-        });
-
-        const iconName = active ? icon : (icon.endsWith('-outline') ? icon : icon + '-outline');
-        const iconColor = isSignOut ? "#ef4444" : active ? "#0f172a" : "#94a3b8"; 
-        const baseTextStyle = { fontSize: dims.text, fontWeight: '600' as const };
-        const activeTextStyle = { fontWeight: '700' as const, color: '#0f172a' };
-        const textStyle = isSignOut 
-            ? { ...baseTextStyle, color: '#ef4444' }
-            : [ { ...baseTextStyle, color: '#94a3b8' }, active && activeTextStyle ];
-
-        return (
-            <Pressable 
-                onPress={onPress || (() => handleNavigate(path))}
-                onHoverIn={() => { hoverVal.value = withTiming(1, { duration: 200 }); }}
-                onHoverOut={() => { hoverVal.value = withTiming(0, { duration: 200 }); }}
-                style={styles.pressableWrapper}
-            >
-                <Animated.View style={[styles.sideItem, animatedHoverStyle]}>
-                    <View style={[styles.fixedIconColumn, { width: dims.itemHeight, height: dims.itemHeight }]}>
-                        <Ionicons name={iconName} size={dims.icon} color={iconColor} />
-                        {showBadge && badgeCount > 0 && (
-                            <View style={styles.badge}>
-                                <Text style={styles.badgeText}>{badgeCount}</Text>
-                            </View>
-                        )}
-                    </View>
-                    <Animated.View style={[styles.labelContainer, animatedContentStyle]}>
-                        <Text style={textStyle} numberOfLines={1}>{label}</Text>
-                    </Animated.View>
-                </Animated.View>
-            </Pressable>
-        );
-    };
-
-    const renderHomeSlot = () => {
-        const isCheckoutActive = pathname === '/checkout';
-        const hasCartItems = cart.length > 0;
-        const showCheckout = isCheckoutActive || (pathname !== '/dashboard' && hasCartItems);
-
-        if (showCheckout) {
-            return (
-                <Animated.View key="checkout" entering={FadeIn.duration(300)} exiting={FadeOut.duration(300)}>
-                    <HoverableMenuItem 
-                        path="/checkout" 
-                        icon="cart" 
-                        label="Checkout" 
-                        showBadge={hasCartItems} 
-                        badgeCount={cart.reduce((a, b) => a + b.quantity, 0)} 
-                    />
-                </Animated.View>
-            );
+        
+        if (isAdmin) {
+            homeItems.push({ label: 'Kitchen Display', icon: 'tv', route: '/kitchen' });
         }
 
-        return (
-            <Animated.View key="menu" entering={FadeIn.duration(300)} exiting={FadeOut.duration(300)}>
-                <HoverableMenuItem path="/dashboard" icon="restaurant" label="Menu Catalog" />
-            </Animated.View>
-        );
+        return {
+            HOME: homeItems,
+            ADMIN: isAdmin ? [
+                { label: 'History', icon: 'time', route: '/order-history' },
+                { label: 'Users', icon: 'people', route: '/manage-users' },
+                { label: 'Inventory', icon: 'cube', route: '/add-menu-item' },
+                { label: 'Add User', icon: 'person-add', route: '/create-user' },
+            ] : [],
+            SETTINGS: [{ label: 'My Profile', icon: 'person', route: '/settings' }]
+        };
+    }, [role, isAdmin, isStaff]);
+
+    const handlePressItem = (route: string) => {
+        router.push(route as any);
+        setActiveCategory(null);
     };
+
+    const toggleMenu = (category: string, anchor: 'top' | 'bottom') => {
+        if (activeCategory === category) {
+            setActiveCategory(null);
+            return;
+        }
+        
+        const yPos = layoutMap.current[category] || 0;
+        const finalY = anchor === 'top' 
+            ? yPos + 24 + 12 
+            : 80;
+
+        setMenuAnchor({ y: finalY, anchor });
+        setActiveCategory(category);
+    };
+
+    const captureLayout = (category: string, event: any) => {
+        layoutMap.current[category] = event.nativeEvent.layout.y;
+    };
+
+    const isRouteActive = (category: string) => {
+        const items = MENUS[category as keyof typeof MENUS];
+        return items?.some(i => pathname.includes(i.route));
+    };
+
+    // 3. LOGIC FIX: Only hide sidebar if the USER ROLE is 'kitchen'.
+    // Admins viewing the kitchen page will still see the sidebar.
+    if (isKitchen) {
+        return null;
+    }
 
     return (
-        <View style={styles.sidebarWrapper}>
-            <Animated.View style={[styles.sidebar, animatedSidebarStyle]}>
-                 <View style={styles.headerContainer}>
-                    <View style={[styles.fixedIconColumn, { width: dims.collapsed - 32, height: 48 }]}>
-                        <Pressable onPress={toggleSidebar} style={styles.toggleBtn}>
-                            <Animated.View style={animatedToggleStyle}>
-                                <Ionicons name="chevron-back" size={24} color="#f8fafc" />
-                            </Animated.View>
-                        </Pressable>
+        <>
+            {/* Backdrop */}
+            {activeCategory && (
+                <Pressable style={styles.backdrop} onPress={() => setActiveCategory(null)} />
+            )}
+
+            <View style={styles.sidebarWrapper}>
+                
+                {/* --- Top Rail --- */}
+                <View style={styles.railPill}>
+                    <View onLayout={(e) => captureLayout('HOME', e)} style={{zIndex: 20}}>
+                        <NavIcon 
+                            icon="restaurant" 
+                            label="Menu"
+                            isActive={activeCategory === 'HOME' || isRouteActive('HOME')} 
+                            onPress={() => toggleMenu('HOME', 'top')} 
+                            isMenuOpen={activeCategory !== null}
+                        />
                     </View>
-                 </View>
-
-                <View style={styles.menuContainer}>
-                    <SectionHeader icon="home" label="HOME" />
-                    {renderHomeSlot()}
-
+                    
                     {isAdmin && (
-                        <>
-                            <View style={styles.adminSpacer} />
-                            <SectionHeader icon="shield-checkmark" label="ADMIN" />
-                            <HoverableMenuItem path="/create-user" icon="person-add" label="Create User" />
-                            <HoverableMenuItem path="/add-menu-item" icon="cube" label="Inventory & Menu" />
-                            <HoverableMenuItem path="/manage-users" icon="people" label="Manage Users" />
-                            <HoverableMenuItem path="/order-history" icon="time" label="Order History" />
-                        </>
+                        <View onLayout={(e) => captureLayout('ADMIN', e)} style={{zIndex: 20}}>
+                            <NavIcon 
+                                icon="shield-checkmark" 
+                                label="Admin"
+                                isActive={activeCategory === 'ADMIN' || isRouteActive('ADMIN')} 
+                                onPress={() => toggleMenu('ADMIN', 'top')} 
+                                isMenuOpen={activeCategory !== null}
+                            />
+                        </View>
                     )}
                 </View>
 
-                <View style={styles.sidebarFooter}>
-                    <HoverableMenuItem path="/settings" icon="settings" label="Settings" />
-                    <HoverableMenuItem path="sign-out" icon="log-out" label="Sign Out" isSignOut={true} onPress={handleSignOut} />
+                {/* --- Bottom Rail --- */}
+                <View style={styles.railPill}>
+                    <View onLayout={(e) => captureLayout('SETTINGS', e)} style={{zIndex: 20}}>
+                        <NavIcon 
+                            icon="settings" 
+                            label="Settings"
+                            isActive={activeCategory === 'SETTINGS' || isRouteActive('SETTINGS')} 
+                            onPress={() => toggleMenu('SETTINGS', 'bottom')} 
+                            isMenuOpen={activeCategory !== null}
+                        />
+                    </View>
                     
-                    <Animated.View style={[styles.creditsContainer, animatedCreditsStyle]}>
-                        <Text style={styles.creditsText}>Designed by Infinity Crafters</Text>
-                    </Animated.View>
+                    <View style={{zIndex: 20}}>
+                        <NavIcon 
+                            icon="log-out" 
+                            label="Exit"
+                            isActive={false}
+                            isDestructive
+                            onPress={() => auth.signOut()} 
+                            isMenuOpen={activeCategory !== null}
+                        />
+                    </View>
                 </View>
-            </Animated.View>
-        </View>
+
+                {/* --- Floating Menus --- */}
+                {activeCategory && menuAnchor && (
+                    <View style={[
+                        styles.flyoutContainer,
+                        {
+                            top: menuAnchor.anchor === 'top' ? menuAnchor.y : undefined,
+                            bottom: menuAnchor.anchor === 'bottom' ? menuAnchor.y : undefined,
+                        }
+                    ]}>
+                        <FlyoutGroup 
+                            items={MENUS[activeCategory as keyof typeof MENUS]} 
+                            onItemPress={handlePressItem} 
+                        />
+                    </View>
+                )}
+            </View>
+        </>
     );
 }
 
+// --- Sub Components ---
+
+const NavIcon = ({ icon, label, isActive, onPress, badge, isDestructive, isMenuOpen }: any) => {
+    const [isHovered, setIsHovered] = useState(false);
+    
+    const scale = useSharedValue(1);
+    const bgOpacity = useSharedValue(0);
+
+    useEffect(() => {
+        scale.value = withSpring(isActive ? 1.15 : (isHovered ? 1.05 : 1));
+        bgOpacity.value = withTiming(isActive ? 1 : (isHovered ? 0.2 : 0), { duration: 250 });
+    }, [isActive, isHovered]);
+
+    const animatedBubble = useAnimatedStyle(() => ({
+        transform: [{ scale: scale.value }],
+        backgroundColor: isActive ? '#38bdf8' : `rgba(56, 189, 248, ${bgOpacity.value})`,
+        borderRadius: 20,
+    }));
+
+    return (
+        <View style={styles.iconWrapper}>
+            <Pressable 
+                onPress={onPress} 
+                onHoverIn={() => setIsHovered(true)}
+                onHoverOut={() => setIsHovered(false)}
+                style={styles.iconBtn}
+            >
+                <Animated.View style={[styles.iconBubble, animatedBubble]}>
+                    <Ionicons 
+                        name={isActive ? icon : `${icon}-outline`} 
+                        size={ICON_SIZE} 
+                        color={isActive ? '#0f172a' : (isDestructive ? '#ef4444' : (isHovered ? '#f8fafc' : '#94a3b8'))} 
+                    />
+                    {badge > 0 && (
+                        <View style={styles.badge}><Text style={styles.badgeText}>{badge}</Text></View>
+                    )}
+                </Animated.View>
+            </Pressable>
+
+            {/* Tooltip: Always on top (zIndex 9999) */}
+            {isHovered && (
+                <Animated.View entering={ZoomIn.duration(150)} exiting={ZoomOut.duration(150)} style={styles.tooltip}>
+                    <Text style={styles.tooltipText}>{label}</Text>
+                </Animated.View>
+            )}
+        </View>
+    );
+};
+
+const FlyoutGroup = ({ items = [], onItemPress }: any) => {
+    if (!items || items.length === 0) return null;
+
+    return (
+        <View style={styles.flyoutColumn}>
+            {items.map((item: any, index: number) => (
+                <Animated.View 
+                    key={item.label} 
+                    entering={SlideInLeft.delay(index * 40).springify().damping(14)} 
+                    exiting={FadeOut.duration(150)}
+                    layout={Layout.springify()}
+                >
+                    <Pressable 
+                        style={({pressed}) => [styles.floatingRow, pressed && styles.floatingRowPressed]} 
+                        onPress={() => onItemPress(item.route)}
+                    >
+                        <View style={[styles.rowIcon, item.isDestructive && {backgroundColor:'rgba(239,68,68,0.15)'}]}>
+                            <Ionicons name={item.icon} size={20} color={item.isDestructive ? '#ef4444' : '#38bdf8'} />
+                        </View>
+                        <Text style={[styles.rowText, item.isDestructive && {color:'#ef4444'}]}>{item.label}</Text>
+                    </Pressable>
+                </Animated.View>
+            ))}
+        </View>
+    );
+};
+
 const styles = StyleSheet.create({
-    sidebarWrapper: { height: '100%', padding: 24, backgroundColor: '#0f172a' },
-    sidebar: { backgroundColor: '#1e293b', paddingVertical: 24, paddingHorizontal: 16, justifyContent: 'space-between', height: '100%', borderRadius: 32, borderWidth: 1, borderColor: '#334155', shadowColor: "#000", shadowOffset: { width: 4, height: 4 }, shadowOpacity: 0.3, shadowRadius: 16, overflow: 'hidden' },
-    headerContainer: { marginBottom: 32, width: '100%', height: 48, flexDirection: 'row', alignItems: 'center' },
-    toggleBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#334155', justifyContent: 'center', alignItems: 'center' },
-    menuContainer: { flex: 1, width: '100%' },
-    sectionHeaderContainer: { height: 40, flexDirection: 'row', alignItems: 'center', marginBottom: 8, marginTop: 12 },
-    adminSpacer: { height: 24, width: '100%' },
-    pressableWrapper: { marginBottom: 6, width: '100%' },
-    sideItem: { flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
-    fixedIconColumn: { alignItems: 'center', justifyContent: 'center', position: 'relative' },
-    labelContainer: { overflow: 'hidden', justifyContent: 'center' },
-    sidebarFooter: { width: '100%', borderTopWidth: 1, borderTopColor: '#334155', paddingTop: 16 },
-    creditsContainer: { paddingLeft: 12, overflow: 'hidden' },
-    creditsText: { fontSize: 10, color: '#64748b', fontWeight: '500', fontStyle: 'italic' },
-    badge: { position: 'absolute', top: 4, right: 4, backgroundColor: '#ef4444', borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#1e293b' },
-    badgeText: { color: 'white', fontSize: 10, fontWeight: 'bold' }
+    backdrop: { ...StyleSheet.absoluteFillObject, zIndex: 40, backgroundColor: 'transparent' },
+    
+    sidebarWrapper: { 
+        height: '100%', 
+        width: 100, 
+        alignItems: 'center', 
+        justifyContent: 'space-between', 
+        paddingVertical: 24, 
+        zIndex: 50 
+    },
+
+    railPill: {
+        width: RAIL_WIDTH,
+        backgroundColor: '#1e293b',
+        borderRadius: 100, 
+        paddingVertical: 12,
+        alignItems: 'center',
+        gap: 16,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.25,
+        shadowRadius: 12,
+        elevation: 8,
+        borderWidth: 1,
+        borderColor: '#334155',
+        zIndex: 60
+    },
+
+    iconWrapper: { position: 'relative', alignItems: 'center', justifyContent: 'center', zIndex: 70 },
+    iconBtn: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
+    iconBubble: { 
+        width: 44, height: 44, borderRadius: 22,
+        alignItems: 'center', justifyContent: 'center',
+    },
+    
+    badge: { 
+        position: 'absolute', top: -4, right: -4, 
+        backgroundColor: '#ef4444', 
+        minWidth: 18, height: 18, borderRadius: 9, 
+        alignItems: 'center', justifyContent: 'center', 
+        borderWidth: 2, borderColor: '#1e293b' 
+    },
+    badgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+
+    tooltip: {
+        position: 'absolute',
+        left: 80, 
+        backgroundColor: '#0f172a',
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#334155',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.5,
+        shadowRadius: 8,
+        elevation: 99,
+        zIndex: 9999, // Guaranteed on top
+        minWidth: 90,
+        alignItems: 'center'
+    },
+    tooltipText: { color: '#f8fafc', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 } as any,
+
+    flyoutContainer: { 
+        position: 'absolute',
+        left: MENU_OFFSET, 
+        zIndex: 80 
+    },
+    flyoutColumn: {
+        gap: 8,
+        minWidth: 200,
+    },
+
+    floatingRow: { 
+        flexDirection: 'row', alignItems: 'center', 
+        backgroundColor: '#1e293b',
+        paddingVertical: 12, paddingHorizontal: 16, 
+        borderRadius: 16, 
+        borderWidth: 1, borderColor: '#334155',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6
+    },
+    floatingRowPressed: { backgroundColor: '#334155', transform: [{scale: 0.98}] },
+    
+    rowIcon: { 
+        width: 32, height: 32, borderRadius: 10, 
+        backgroundColor: 'rgba(56, 189, 248, 0.1)', 
+        alignItems: 'center', justifyContent: 'center', 
+        marginRight: 14 
+    },
+    rowText: { color: '#f8fafc', fontWeight: '600', fontSize: 14, letterSpacing: 0.25 }
 });

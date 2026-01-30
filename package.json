@@ -8,7 +8,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "build": "npx expo export -p web",
+    "web-build": "npx expo export -p web --clear"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

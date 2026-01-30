@@ -35,6 +35,7 @@ function RootLayoutNav() {
           <Stack.Screen name="order-history" options={{ title: 'Order History',headerShown: false }} />
           <Stack.Screen name="edit-menu-item" options={{ title: 'Edit Menu Item',headerShown: false }} />
           <Stack.Screen name="checkout" options={{ title: 'Checkout',headerShown: false }} />
+          <Stack.Screen name="kitchen/index" options={{ title: 'index',headerShown: false }} />
         </Stack>
         <StatusBar style="auto" />
       </ResponsiveLayout>

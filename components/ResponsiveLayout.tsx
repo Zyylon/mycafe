@@ -8,24 +8,22 @@ export default function ResponsiveLayout({ children }: { children: React.ReactNo
     const { width } = useWindowDimensions();
     const pathname = usePathname();
     
-    // 1. Breakpoint: Switch to mobile layout if width is less than 768px (iPad Portrait/Tablets)
-    const isMobile = width < 768;
+    // Switch to Mobile Bottom Nav if width is less than 1024px (Small Tablets/Phones)
+    // Larger Tablets, Laptops, TV Boxes get Sidebar
+    const isMobile = width < 1024;
 
-    // 2. Blacklist: Routes where NO navigation should be shown (Splash, Login, etc.)
-    // We normalize the path to ensure it catches variations
     const isPublicRoute = 
         pathname === '/' || 
         pathname === '/index' || 
         pathname.includes('/auth/login');
 
-    // 3. If it's a public route, just render the content (No Sidebar/No Bottom Bar)
     if (isPublicRoute) {
         return <View style={styles.fullScreen}>{children}</View>;
     }
 
     return (
         <View style={styles.container}>
-            {/* DESKTOP: Render Sidebar on the left */}
+            {/* DESKTOP/TV: Vertical Sidebar */}
             {!isMobile && (
                 <View style={styles.sidebarContainer}>
                     <Sidebar />
@@ -37,7 +35,7 @@ export default function ResponsiveLayout({ children }: { children: React.ReactNo
                 {children}
             </View>
 
-            {/* MOBILE: Render Bottom Nav (Floating Dock) */}
+            {/* MOBILE: Floating Bottom Dock */}
             {isMobile && <MobileBottomNav />}
         </View>
     );
@@ -46,8 +44,8 @@ export default function ResponsiveLayout({ children }: { children: React.ReactNo
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        flexDirection: 'row', // Desktop default: Sidebar | Content
-        backgroundColor: '#0f172a', // Match your dark theme background
+        flexDirection: 'row', 
+        backgroundColor: '#0f172a', 
     },
     fullScreen: {
         flex: 1,
@@ -55,15 +53,11 @@ const styles = StyleSheet.create({
     },
     sidebarContainer: {
         height: '100%',
-        zIndex: 10,
-        // Sidebar component handles its own width/animation
+        zIndex: 50, // Ensure sidebar flyouts float above content
     },
     contentContainer: {
         flex: 1,
         height: '100%',
-        // On mobile, the content is behind the floating dock, 
-        // usually we don't need padding because the dock floats over content,
-        // but if content gets cut off at bottom, add padding here.
         paddingBottom: Platform.OS === 'ios' ? 0 : 0, 
     }
 });

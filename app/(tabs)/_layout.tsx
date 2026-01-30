@@ -1,73 +1,40 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { Platform } from 'react-native';
+import React from 'react';
+import { useAuth } from '../../context/AuthContext';
 
 export default function TabsLayout() {
+  const { userData } = useAuth();
+  const isStaffOrAdmin = userData?.role === 'staff' || userData?.role === 'admin' || userData?.role === 'superadmin';
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        // Hide the default tab bar because we are using a custom MobileBottomNav 
-        // in the RootLayout via ResponsiveLayout.
         tabBarStyle: { display: 'none' }, 
       }}>
       
-      <Tabs.Screen
-        name="index"
-        options={{
-          href: null,
-        }}
-      />
-
-      <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: 'Menu',
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-        }}
-      />
+      <Tabs.Screen name="index" options={{ href: null }} />
+      <Tabs.Screen name="dashboard" options={{ title: 'Menu' }} />
       
-      {/* Admin routes included as hidden tabs */}
-      <Tabs.Screen
-        name="create-user"
-        options={{
-          href: null,
-          title: 'Create User',
-        }}
-      />
-      <Tabs.Screen
-        name="add-menu-item"
-        options={{
-          href: null,
-          title: 'Add Menu Item',
-        }}
-      />
-      <Tabs.Screen
-        name="manage-users"
-        options={{
-          href: null,
-          title: 'Manage Users',
-        }}
-      />
-      <Tabs.Screen
-        name="order-history"
-        options={{
-          href: null,
-          title: 'Order History',
-        }}
-      />
-       <Tabs.Screen
-        name="edit-menu-item"
-        options={{
-          href: null,
-          title: 'Edit Menu Item',
-        }}
-      />
+      {isStaffOrAdmin && (
+        <Tabs.Screen
+          name="ongoing-orders"
+          options={{
+            title: 'Ongoing',
+          }}
+        />
+      )}
+
+      <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+      
+      {/* Hidden Admin/Kitchen routes */}
+      <Tabs.Screen name="create-user" options={{ href: null }} />
+      <Tabs.Screen name="add-menu-item" options={{ href: null }} />
+      <Tabs.Screen name="manage-users" options={{ href: null }} />
+      <Tabs.Screen name="order-history" options={{ href: null }} />
+      <Tabs.Screen name="edit-menu-item" options={{ href: null }} />
+      <Tabs.Screen name="kitchen" options={{ href: null }} />
     </Tabs>
   );
 }

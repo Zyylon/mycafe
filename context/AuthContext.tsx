@@ -4,7 +4,9 @@ import { ref, onValue } from 'firebase/database';
 import { auth, database } from '../services/firebase';
 import { useRouter, useSegments } from 'expo-router';
 
-// --- Types ---
+// --- Updated Types ---
+export type UserRole = 'superadmin' | 'admin' | 'staff' | 'kitchen' | 'customer';
+
 interface MenuItem {
     id: string;
     name: string;
@@ -12,15 +14,22 @@ interface MenuItem {
     imageUrl?: string;
     categoryId: string;
     description?: string;
+    isKitchenItem?: boolean;
 }
 
 interface CartItem extends MenuItem {
     quantity: number;
 }
 
+interface UserData {
+    role: UserRole;
+    username: string;
+    email?: string;
+}
+
 interface AuthState {
   user: User | null;
-  userData: { role?: string; username?: string; email?: string } | null;
+  userData: UserData | null;
   loading: boolean;
   cart: CartItem[];
   setCart: React.Dispatch<React.SetStateAction<CartItem[]>>;
@@ -40,7 +49,7 @@ export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [userData, setUserData] = useState<{ role?: string; username?: string; email?: string } | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   
   // GLOBAL CART STATE
@@ -60,7 +69,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resetInactivityTimer = () => {
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-    inactivityTimer.current = setTimeout(handleSignOut, 900000); // 900 seconds
+    // Kitchen screens usually stay on forever, so maybe increase timeout for them or check role
+    if (userData?.role === 'kitchen') return; 
+    inactivityTimer.current = setTimeout(handleSignOut, 900000); // 15 mins
   };
 
   const events = ['mousemove', 'keydown', 'scroll', 'touchstart'];
@@ -91,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setUserData(null);
         setLoading(false);
-        setCart([]); // Clear cart on logout
+        setCart([]);
 
         if (typeof window !== 'undefined') {
             events.forEach(event => window.removeEventListener(event, resetTimer));
@@ -109,17 +120,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // --- Protected Routes Logic ---
   useEffect(() => {
     if (loading) return;
 
     const inAuthGroup = segments[0] === 'auth'; 
+    // Check if user is currently inside the /kitchen route
+    const inKitchenRoute = segments[0] === 'kitchen';
 
-    if (user && inAuthGroup) {
-      router.replace('/(tabs)/dashboard');
+    if (user && userData) {
+      if (inAuthGroup) {
+        // Redirect logic after login
+        if (userData.role === 'kitchen') {
+            router.replace('/kitchen');
+        } else {
+            router.replace('/(tabs)/dashboard');
+        }
+      } else {
+        // Enforce Role Boundaries
+        if (userData.role === 'kitchen' && !inKitchenRoute) {
+            // Kick Kitchen user back to kitchen if they wander off
+            router.replace('/kitchen');
+        }
+      }
+
     } else if (!user && !inAuthGroup) {
       router.replace('/auth/login');
     }
-  }, [user, loading, segments]);
+  }, [user, userData, loading, segments]);
 
   return (
     <AuthContext.Provider value={{ user, userData, loading, cart, setCart, clearCart }}>

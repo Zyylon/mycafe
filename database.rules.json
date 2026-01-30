@@ -2,35 +2,52 @@
   "rules": {
     "users": {
       ".read": "auth != null",
-      ".write": "auth != null",
+      // Allow writing if: 
+      // 1. It's the user writing to their own node
+      // 2. OR the requester is an Admin
+      // 3. OR the requester is a SuperAdmin
       "$uid": {
-        ".read": "$uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'superadmin'",
+        ".read": "$uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'superadmin' || root.child('users').child(auth.uid).child('role').val() === 'staff'",
         ".write": "$uid === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'superadmin'"
       }
     },
+    
     "username_map": {
-      ".read": "true",
+      ".read": true,
       ".write": "auth != null"
     },
+
     "menu_items": {
-      ".read": "true",
+      ".read": true,
       ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'superadmin')"
     },
+
+    "categories": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'superadmin')"
+    },
+
     "inventory_log": {
       ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'superadmin')",
       ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'superadmin')"
     },
+
+    // NEW: Kitchen Workflow
+    "ongoing_orders": {
+      // Staff, Kitchen, Admin need to see and update these
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+
+    // Completed History
     "orders": {
       ".read": "auth != null",
       ".write": "auth != null"
     },
+
     "counters": {
       ".read": "auth != null",
       ".write": "auth != null"
-    },
-    "categories": {
-      ".read": "true",
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'superadmin')"
     }
   }
 }

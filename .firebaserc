@@ -1,7 +1,5 @@
 {
   "projects": {
     "default": "cafeproject-69d9d"
-  },
-  "targets": {},
-  "etags": {}
+  }
 }
